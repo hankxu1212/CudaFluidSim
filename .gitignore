@@ -1,0 +1,9 @@
+maek-cache.json
+objs/
+spv/
+
+.vs
+x64/
+*.obj
+*.exe
+*.pdb
