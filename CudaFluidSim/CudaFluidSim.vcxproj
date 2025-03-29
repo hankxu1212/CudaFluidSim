@@ -11,8 +11,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="library\glad\src\glad.c" />
     <ClCompile Include="library\glm\glm\detail\glm.cpp" />
     <ClCompile Include="library\glm\glm\glm.cppm" />
+    <ClCompile Include="src\Renderer.cpp" />
+    <ClCompile Include="src\Solver.cpp" />
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\input\NativeInput.cpp" />
     <ClCompile Include="src\layers\LayerStack.cpp" />
@@ -36,6 +39,8 @@
     <ClCompile Include="src\window\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="library\glad\include\glad\glad.h" />
+    <ClInclude Include="library\glad\include\KHR\khrplatform.h" />
     <ClInclude Include="library\glfw-3.4.bin.WIN64\include\GLFW\glfw3.h" />
     <ClInclude Include="library\glfw-3.4.bin.WIN64\include\GLFW\glfw3native.h" />
     <ClInclude Include="library\glm\glm\common.hpp" />
@@ -326,6 +331,8 @@
     <ClInclude Include="library\glm\glm\vec3.hpp" />
     <ClInclude Include="library\glm\glm\vec4.hpp" />
     <ClInclude Include="library\glm\glm\vector_relational.hpp" />
+    <ClInclude Include="src\Renderer.hpp" />
+    <ClInclude Include="src\Solver.hpp" />
     <ClInclude Include="src\Application.hpp" />
     <ClInclude Include="src\Core.hpp" />
     <ClInclude Include="src\events\ApplicationEvent.hpp" />
@@ -544,19 +551,20 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
-    <IncludePath>library\glfw-3.4.bin.WIN64\include;src\;library\glm;$(IncludePath)</IncludePath>
+    <IncludePath>library\glfw-3.4.bin.WIN64\include;src\;library\glm;library\glad\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WIN64;GLFW_INCLUDE_NONE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>

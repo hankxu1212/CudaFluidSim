@@ -93,8 +93,13 @@ Window::Window()
 		s_GLFWWindowCount++;
 	}
 
-	assert(glfwVulkanSupported() && "[glfw]: Vulkan Not Supported");
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
 
 	nativeWindow = glfwCreateWindow((int)props.width, (int)props.height, m_Data.Title.c_str(), nullptr, nullptr);
 
@@ -202,6 +207,8 @@ Window::Window()
 	}
 
 	glfwSetWindowCenter(nativeWindow);
+
+	glfwMakeContextCurrent(nativeWindow);
 }
 
 Window::~Window()
@@ -219,5 +226,6 @@ Window::~Window()
 
 void Window::Update()
 {
+	// poll events on pre stage
 	glfwPollEvents();
 }

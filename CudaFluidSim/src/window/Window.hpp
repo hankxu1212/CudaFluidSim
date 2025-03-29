@@ -1,12 +1,16 @@
 #pragma once
 
-#include "GLFW/glfw3.h"
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
 #include "Application.hpp"
 
 // Represents an abstraction on GLFW window
 class Window : public Module::Registrar<Window>
 {
-	inline static const bool Registered = Register(UpdateStage::Pre, DestroyStage::Post);
+	inline static const bool Registered = Register(
+		UpdateStage::Pre, 
+		DestroyStage::Post);
 
 public:
 	Window();
