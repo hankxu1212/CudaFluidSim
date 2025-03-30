@@ -12,7 +12,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "Core.hpp"
+#include "core/Core.hpp"
 
 // Events are currently blocking, meaning when an event occurs it
 // immediately gets dispatched and must be dealt with right then an there.

@@ -10,7 +10,7 @@
 
 #include "Event.hpp"
 #include "KeyCodes.hpp"
-#include "Core.hpp"
+#include "core/Core.hpp"
 
 class KeyEvent : public Event
 {

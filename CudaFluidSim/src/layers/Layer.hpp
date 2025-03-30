@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "Core.hpp"
+#include "core/Core.hpp"
 #include "events/Event.hpp"
 
 /**

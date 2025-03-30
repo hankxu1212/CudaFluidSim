@@ -8,12 +8,16 @@
 
 #include "resources/Resources.hpp"
 #include "utils/Timer.hpp"
+#include "utils/Logger.hpp"
 
 Application* Application::s_Instance = nullptr;
 
 Application::Application(const ApplicationSpecification& specification)
 	: m_Specification(specification)
 {
+	if (specification.headless)
+		std::cout << "Running in headless mode!\n";
+
 	s_Instance = this;
 
 	auto& registry = Module::GetRegistry();
@@ -66,6 +70,8 @@ void Application::Run()
 			m_FPS = m_FPS_Accumulator;
 			lastSecondTime = currTime;
 			m_FPS_Accumulator = 0;
+			
+			std::cout << "Application is running at:" << m_FPS << " FPS\n";
 			StatsDirty = true;
 		}
 

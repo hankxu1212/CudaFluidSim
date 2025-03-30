@@ -78,6 +78,10 @@ static void GLFWErrorCallback(int error, const char* description)
 	std::cerr << "GLFW Error: " << error << ": " << description << std::endl;
 }
 
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+	glViewport(0, 0, width, height);
+}
+
 Window::Window()
 {
 	const ApplicationSpecification& props = Application::GetSpecification();
@@ -204,11 +208,14 @@ Window::Window()
 				MouseMovedEvent event((float)xPos, (float)yPos);
 				data.EventCallback(event);
 			});
+
 	}
 
 	glfwSetWindowCenter(nativeWindow);
 
 	glfwMakeContextCurrent(nativeWindow);
+
+	glfwSetFramebufferSizeCallback(nativeWindow, framebuffer_size_callback);
 }
 
 Window::~Window()

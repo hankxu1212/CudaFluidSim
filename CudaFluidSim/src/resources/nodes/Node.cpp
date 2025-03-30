@@ -1,6 +1,6 @@
 #include "Node.hpp"
 
-#include "Core.hpp"
+#include "core/Core.hpp"
 
 static const NodeProperty NullNode = NodeProperty("", Node() = nullptr);
 

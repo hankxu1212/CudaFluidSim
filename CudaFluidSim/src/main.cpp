@@ -1,4 +1,4 @@
-#include "Application.hpp"
+#include "core/Application.hpp"
 
 static void Parse(ApplicationCommandLineArgs args, ApplicationSpecification& spec)
 {
@@ -61,9 +61,10 @@ static Application* CreateApplication(ApplicationCommandLineArgs args)
 {
     ApplicationSpecification spec{
         .Name = "Cuda Fluid Simulator",
-        .width = 1920,
-        .height = 1080,
-        .CommandLineArgs = args
+        .width = 800,
+        .height = 800,
+        .CommandLineArgs = args,
+        .headless = false // you should make this true and compile again to run in headless mode
     };
 
     Parse(args, spec);

@@ -3,7 +3,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "Application.hpp"
+#include "core/Application.hpp"
 
 // Represents an abstraction on GLFW window
 class Window : public Module::Registrar<Window>

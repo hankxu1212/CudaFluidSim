@@ -28,16 +28,11 @@ struct ApplicationCommandLineArgs
 struct ApplicationSpecification
 {
 	std::string Name = "Cuda Fluid Simulator";
-	uint32_t width = 1920;
-	uint32_t height = 1080;
+	uint32_t width = 800;
+	uint32_t height = 800;
 	ApplicationCommandLineArgs CommandLineArgs;
-	
-	enum class Culling { None, Frustum } Culling = Culling::None;
-	std::optional<std::string> PhysicalDeviceName = std::nullopt;
-	std::optional<std::string> CameraName = std::nullopt;
-	std::optional<std::string> InitialScene = std::nullopt;
 
-	bool alternativeApplication = false;
+	bool headless = false; // solve without a renderer
 };
 
 class Application : Singleton

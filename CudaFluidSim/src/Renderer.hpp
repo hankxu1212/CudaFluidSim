@@ -1,13 +1,15 @@
 #pragma once
 
 #include "window/Window.hpp"
+#include "resources/ResourceManager.h"
+#include "Solver.hpp"
 
 class Renderer : public Module::Registrar<Renderer>
 {
 	inline static const bool Registered = Register(
 		UpdateStage::Render,
 		DestroyStage::Post,
-		Requires<Window>()
+		Requires<Window, Solver>()
 	);
 
 public:
@@ -16,5 +18,12 @@ public:
 	virtual ~Renderer();
 
 	void Update();
+
+private:
+	Shader shader;
+	unsigned int VAO;
 };
+
+
+
 
