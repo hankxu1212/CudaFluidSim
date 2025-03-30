@@ -32,6 +32,15 @@ struct ApplicationSpecification
 	uint32_t height = 800;
 	ApplicationCommandLineArgs CommandLineArgs;
 
+	enum AccelerationMode
+	{
+		Naive, Spatial, GPU
+	};
+
+	// parallel mode
+	AccelerationMode accelerationMode = Naive;
+	uint32_t numThreads = 8;
+
 	bool headless = false; // solve without a renderer
 };
 

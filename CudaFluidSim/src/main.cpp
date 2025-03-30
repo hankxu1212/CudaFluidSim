@@ -64,6 +64,8 @@ static Application* CreateApplication(ApplicationCommandLineArgs args)
         .width = 800,
         .height = 800,
         .CommandLineArgs = args,
+        .accelerationMode = ApplicationSpecification::AccelerationMode::Spatial, // you should modify this to change parallel mode
+        .numThreads = 8,
         .headless = false // you should make this true and compile again to run in headless mode
     };
 

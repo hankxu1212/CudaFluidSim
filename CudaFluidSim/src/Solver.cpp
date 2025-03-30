@@ -8,68 +8,113 @@
 
 #include "utils/Time.hpp"
 
-// "Particle-Based Fluid Simulation for Interactive Applications" by Müller et al.
-// solver parameters
+#include "SpatialHashTable.hpp"
+
+#define WINDOW_HEIGHT Window::Get()->m_Data.Height
+#define WINDOW_WIDTH Window::Get()->m_Data.Width
+
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
-const static float REST_DENS = 300.f;  // rest density
-const static float GAS_CONST = 2000.f; // const for equation of state
-const static float H = 8.f;		   // kernel radius
-const static float HSQ = H * H;		   // radius^2 for optimization
-const static float MASS = 2.5f;		   // assume all particles have the same mass
-const static float VISC = 200.f;	   // viscosity constant
-const static float DT = 0.001f;
 
-// smoothing kernels defined in Müller and their gradients
-// adapted to 2D per "SPH Based Shallow Water Simulation" by Solenthaler et al.
-const static float POLY6 = 4.f / (glm::pi<float>() * pow(H, 8.f));
-const static float SPIKY_GRAD = -10.f / (glm::pi<float>() * pow(H, 5.f));
-const static float VISC_LAP = 40.f / (glm::pi<float>() * pow(H, 5.f));
-
-// interaction
-const static int NUM_PARTICLES = 1000;
-
-// rendering projection parameters
-#define VIEW_HEIGHT Window::Get()->m_Data.Height
-#define VIEW_WIDTH Window::Get()->m_Data.Width
-
-// simulation parameters
-const static float EPS = H; // boundary epsilon
-const static float BOUND_DAMPING = -0.5f;
+Solver* Solver::s_Instance = nullptr;
 
 Solver::Solver()
 {
-	omp_set_num_threads(8);
+	s_Instance = this;
 
-	InitSPH();
+	POLY6 = 4.f / (glm::pi<float>() * pow(H, 8.f));
+	SPIKY_GRAD = -10.f / (glm::pi<float>() * pow(H, 5.f));
+	VISC_LAP = 40.f / (glm::pi<float>() * pow(H, 5.f));
+
+	uint32_t numThreads = Application::GetSpecification().numThreads;
+	std::cout << "Solving with " << numThreads << " OpenMP threads.\n";
+
+	omp_set_num_threads(numThreads);
+
+	auto accelerationMode = Application::GetSpecification().accelerationMode;
+
+	switch (accelerationMode)
+	{
+	case ApplicationSpecification::Naive:
+		std::cout << "Acceleration method: Naive\n";
+		InitSPH();
+		break;
+
+	case ApplicationSpecification::Spatial:
+		std::cout << "Acceleration method: Spatial Hashing\n";
+		SpatialParallelInitSPH();
+		break;
+
+	case ApplicationSpecification::GPU:
+		std::cout << "Acceleration method: GPU\n";
+		KernelInitSPH();
+		break;
+	}
 }
 
 Solver::~Solver()
 {
 }
 
-void Solver::Update()
+void Solver::OnUpdate()
 {
-	ComputeDensityPressure();
-	ComputeForces();
-	Integrate(DT);
+	if (isPaused)
+		return;
+
+	auto accelerationMode = Application::GetSpecification().accelerationMode;
+
+	switch (accelerationMode)
+	{
+	case ApplicationSpecification::Naive:
+		ComputeDensityPressure();
+		ComputeForces();
+		Integrate(DT);
+		break;
+
+	case ApplicationSpecification::Spatial:
+		SpatialParallelUpdate();
+		break;
+
+	case ApplicationSpecification::GPU:
+		// TODO: run your kernel code here
+		KernelComputeDensityPressure();
+		KernelComputeForces();
+		KernelIntegrate(DT);
+		break;
+	}
+}
+
+void Solver::OnEvent(Event& e)
+{
+	e.Dispatch<KeyPressedEvent>(NE_BIND_EVENT_FN(Solver::OnKeyPressed));
+}
+
+bool Solver::OnKeyPressed(KeyPressedEvent& e)
+{
+	if (e.m_IsRepeat)
+		return false;
+
+	switch (e.m_KeyCode)
+	{
+	case Key::Escape:
+		isPaused = !isPaused;
+		break;
+	}
+
+	return false;
 }
 
 void Solver::InitSPH()
 {
-	for (float y = EPS; y < VIEW_HEIGHT - EPS * 2.f; y += H)
-	{
-		for (float x = VIEW_WIDTH / 4; x <= VIEW_WIDTH / 2; x += H)
-		{
-			if (m_Particles.size() < NUM_PARTICLES)
-			{
-				float jitter = static_cast<float>(Math::Random()) / static_cast<float>(RAND_MAX);
-				m_Particles.push_back(Particle(x + jitter, y));
-			}
-			else
-			{
-				return;
-			}
-		}
+	for (int i = 0; i < NUM_PARTICLES; ++i) {
+		// Calculate random angle
+		float angle = Math::Random(0, 2.0f * 3.1415f);
+		float r = Math::Random();
+
+		// Calculate random position on circle
+		float x = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * cos(angle) + WINDOW_HEIGHT / 5;
+		float y = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * sin(angle);
+
+		m_Particles.emplace_back(x, y, i, 0);
 	}
 
 	std::cout << "Initializing " << m_Particles.size() << " particles" << std::endl;
@@ -83,29 +128,29 @@ void Solver::Integrate(float dt)
 		auto& p = m_Particles[i];
 
 		// forward Euler integration
-		p.v += dt * p.f / p.rho;
-		p.x += dt * p.v;
+		p.velocity += dt * p.force / p.density;
+		p.position += dt * p.velocity;
 
 		// enforce boundary conditions
-		if (p.x[0] - EPS < 0.f)
+		if (p.position[0] - EPS < 0.f)
 		{
-			p.v[0] *= BOUND_DAMPING;
-			p.x[0] = EPS;
+			p.velocity[0] *= BOUND_DAMPING;
+			p.position[0] = EPS;
 		}
-		if (p.x[0] + EPS > VIEW_WIDTH)
+		if (p.position[0] + EPS > WINDOW_WIDTH)
 		{
-			p.v[0] *= BOUND_DAMPING;
-			p.x[0] = VIEW_WIDTH - EPS;
+			p.velocity[0] *= BOUND_DAMPING;
+			p.position[0] = WINDOW_WIDTH - EPS;
 		}
-		if (p.x[1] - EPS < 0.f)
+		if (p.position[1] - EPS < 0.f)
 		{
-			p.v[1] *= BOUND_DAMPING;
-			p.x[1] = EPS;
+			p.velocity[1] *= BOUND_DAMPING;
+			p.position[1] = EPS;
 		}
-		if (p.x[1] + EPS > VIEW_HEIGHT)
+		if (p.position[1] + EPS > WINDOW_HEIGHT)
 		{
-			p.v[1] *= BOUND_DAMPING;
-			p.x[1] = VIEW_HEIGHT - EPS;
+			p.velocity[1] *= BOUND_DAMPING;
+			p.position[1] = WINDOW_HEIGHT - EPS;
 		}
 	}
 }
@@ -117,21 +162,21 @@ void Solver::ComputeDensityPressure()
 	{
 		auto& pi = m_Particles[i];
 
-		pi.rho = 0.f;
+		pi.density = 0.f;
 		for (int j = 0; j < m_Particles.size(); ++j)
 		{
 			auto& pj = m_Particles[j];
 
-			glm::vec2 rij = pj.x - pi.x;
+			glm::vec2 rij = pj.position - pi.position;
 			float r2 = glm::length2(rij);
 
 			if (r2 < HSQ)
 			{
 				// this computation is symmetric
-				pi.rho += MASS * POLY6 * pow(HSQ - r2, 3.f);
+				pi.density += MASS * POLY6 * pow(HSQ - r2, 3.f);
 			}
 		}
-		pi.p = GAS_CONST * (pi.rho - REST_DENS);
+		pi.pressure = GAS_CONST * (pi.density - REST_DENS);
 	}
 }
 
@@ -153,18 +198,233 @@ void Solver::ComputeForces()
 				continue;
 			}
 
-			glm::vec2 rij = pj.x - pi.x;
+			glm::vec2 rij = pj.position - pi.position;
 			float r = glm::length(rij);
 
 			if (r < H)
 			{
 				// compute pressure force contribution
-				fpress += glm::normalize(-rij) * MASS * (pi.p + pj.p) / (2.f * pj.rho) * SPIKY_GRAD * pow(H - r, 3.f);
+				float mangitude = MASS * (pi.pressure + pj.pressure) / (2.0f * pj.density) * SPIKY_GRAD * pow(H - r, 3);
+				fpress += glm::normalize(-rij) * mangitude;
+
 				// compute viscosity force contribution
-				fvisc += VISC * MASS * (pj.v - pi.v) / pj.rho * VISC_LAP * (H - r);
+				fvisc += VISC * MASS * (pj.velocity - pi.velocity) / pj.density * VISC_LAP * (H - r);
 			}
 		}
-		glm::vec2 fgrav = G * MASS / pi.rho;
-		pi.f = fpress + fvisc + fgrav;
+		glm::vec2 fgrav = G * MASS / pi.density;
+		pi.force = fpress + fvisc + fgrav;
 	}
+}
+
+void Solver::SpatialParallelInitSPH()
+{
+	InitSPH();
+}
+
+void Solver::SpatialParallelComputeDensityPressure()
+{
+	#pragma omp parallel for schedule(dynamic)
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
+		float pDensity = 0;
+
+		Particle& pi = m_Particles[i];
+
+		std::vector<uint32_t> neighbors = FindNearbyParticles(i);
+
+		for (int neighbor = 0; neighbor < neighbors.size(); ++neighbor)
+		{
+			Particle& pj = m_Particles[neighbors[neighbor]];
+
+			float dist2 = glm::length2(pj.position - pi.position);
+			if (dist2 >= HSQ)
+				continue;
+
+			pDensity += MASS * POLY6 * pow(HSQ - dist2, 3.f);
+		}
+
+		// Include self density (as itself isn't included in neighbour)
+		pi.density = pDensity + MASS * POLY6 * pow(HSQ, 3.f);
+
+		// Calculate pressure
+		float pPressure = GAS_CONST * (pi.density - REST_DENS);
+		pi.pressure = pPressure;
+	}
+}
+
+void Solver::SpatialParallelComputeForces()
+{
+	#pragma omp parallel for schedule(dynamic)
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
+		Particle& pi = m_Particles[i];
+
+		std::vector<uint32_t> neighbors = FindNearbyParticles(i);
+
+		glm::vec2 fpress(0.f, 0.f);
+		glm::vec2 fvisc(0.f, 0.f);
+		for (int neighbor = 0; neighbor < neighbors.size(); ++neighbor)
+		{
+			Particle& pj = m_Particles[neighbors[neighbor]];
+
+			float dist2 = glm::length2(pj.position - pi.position);
+			if (dist2 >= HSQ)
+				continue;
+
+			//unit direction and length
+			float dist = sqrt(dist2);
+			glm::vec2 dir = glm::normalize(pj.position - pi.position);
+
+			//apply pressure force
+			float mangitude = MASS * (pi.pressure + pj.pressure) / (2.0f * pj.density) * SPIKY_GRAD * pow(H - dist, 3);
+			glm::vec2 pressureForce = mangitude * -dir;
+
+			fpress += pressureForce;
+
+			//apply viscosity force
+			fvisc += VISC * MASS * (pj.velocity - pi.velocity) / pj.density * VISC_LAP * (H - dist);
+		}
+
+		glm::vec2 fgrav = G * MASS / pi.density;
+		pi.force = fpress + fvisc + fgrav;
+	}
+}
+
+void Solver::CalculateHashes()
+{
+	#pragma omp parallel for
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
+		m_Particles[i].hash = SpatialHashTable::GetHashFromParticle(m_Particles[i], CELL_SIZE);
+	}
+}
+
+void Solver::SpatialParallelUpdate()
+{
+	// each particle gets assigned a hash corresponding to a particular cell in the grid
+	CalculateHashes();
+
+	// sort particles by the particle's hash
+	std::sort(
+		m_Particles.begin(), m_Particles.end(),
+		[&](const Particle& i, const Particle& j) {
+			return i.hash < j.hash;
+		}
+	);
+
+	// m_ParticleHashTable[cell_hash] = starting particle index of that cell
+	m_ParticleHashTable = SpatialHashTable::Create(m_Particles);
+
+	// the following section debugs the spatial hash table
+	//std::vector<uint32_t> availableHashes;
+	//for (auto hash : m_ParticleHashTable)
+	//{
+	//	if (hash != SpatialHashTable::NO_PARTICLE)
+	//		availableHashes.emplace_back(hash);
+	//}
+
+	//std::cout << "Total hashes " << availableHashes.size() << std::endl;
+
+	// The following section tries to find a particle given a spawn ID (e.g. targetRawPid = 0)
+	//constexpr int targetRawPid = 0;
+
+	//int pid = -1;
+	//for (int i = 0; i < m_Particles.size(); ++i)
+	//{
+	//	if (m_Particles[i].id == targetRawPid) {
+	//		pid = i;
+	//		break;
+	//	}
+	//}
+
+	//assert(pid != -1);
+
+	// color everything black
+	//#pragma omp parallel for
+	//for (int i = 0; i < m_Particles.size(); ++i)
+	//{
+	//	m_Particles[i].debugColor = 0;
+	//}
+
+	// UNCOMMENT BELOW TO DEBUG A PARTICULAR PARTICLE
+	//std::vector<uint32_t> nearbyParticleIds = FindNearbyParticles(pid);
+	//std::cout << nearbyParticleIds.size() << "\n";
+	//#pragma omp parallel for
+	//for (int i = 0; i < nearbyParticleIds.size(); ++i)
+	//{
+	//	m_Particles[nearbyParticleIds[i]].debugColor = 0.5f;
+	//}
+	//m_Particles[pid].debugColor = 1;
+
+	// UNCOMMENT BELOW TO DEBUG SPATIAL BINS BY COLOR
+	//#pragma omp parallel for
+	//for (int i = 0; i < m_Particles.size(); ++i)
+	//{
+	//	m_Particles[i].debugColor = (float)SpatialHashTable::GetHashFromParticle(m_Particles[i], CELL_SIZE) / SpatialHashTable::TABLE_SIZE;
+	//}
+
+	SpatialParallelComputeDensityPressure();
+	//ComputeDensityPressure();
+
+	SpatialParallelComputeForces();
+	//ComputeForces();
+
+	Integrate(DT);
+}
+
+std::vector<uint32_t> Solver::FindNearbyParticles(int sortedPid)
+{
+	std::vector<uint32_t> particlesIndices;
+	particlesIndices.reserve(25); // reserve an average amount m
+
+	glm::ivec2 cell = SpatialHashTable::GetCell(m_Particles[sortedPid], CELL_SIZE);
+
+	for (int x = -1; x <= 1; x++)
+	{
+		for (int y = -1; y <= 1; y++)
+		{
+			glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+			if (adjacentCell.x < 0 && adjacentCell.y < 0) // boundary condition
+				continue;
+
+			uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+			uint32_t thisCellsStartingIndex = m_ParticleHashTable[adjacentCellHash];
+			if (thisCellsStartingIndex == SpatialHashTable::NO_PARTICLE)
+				continue;
+
+			while (thisCellsStartingIndex < m_Particles.size())
+			{
+				if (thisCellsStartingIndex == sortedPid) 
+				{
+					thisCellsStartingIndex++;
+					continue;
+				}
+
+				if (m_Particles[thisCellsStartingIndex].hash != adjacentCellHash)
+					break;
+
+				particlesIndices.emplace_back(thisCellsStartingIndex);
+
+				thisCellsStartingIndex++;
+			}
+		}
+	}
+
+	return particlesIndices;
+}
+
+void Solver::KernelInitSPH()
+{
+}
+
+void Solver::KernelComputeDensityPressure()
+{
+}
+
+void Solver::KernelComputeForces()
+{
+}
+
+void Solver::KernelIntegrate(float dt)
+{
 }

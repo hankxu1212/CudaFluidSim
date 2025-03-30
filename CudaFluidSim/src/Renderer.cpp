@@ -6,6 +6,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "window/Window.hpp"
 
+#include "SpatialHashTable.hpp"
+#include "Solver.hpp"
+
 Renderer::Renderer()
 {
     if (Application::GetSpecification().headless)
@@ -72,16 +75,14 @@ void Renderer::Update()
     // render particles
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
     this->shader.Use();
-    uint32_t id = 0;
     const auto& particles = Solver::Get()->m_Particles;
     for (const auto& particle : particles)
     {
-        this->shader.SetVector2f("center", particle.x);
-        this->shader.SetFloat("particleIndex", id);
+        this->shader.SetFloat("particleRGB", particle.debugColor);
+        this->shader.SetVector2f("center", particle.position);
         glBindVertexArray(this->VAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glBindVertexArray(0);
-        id++;
     }
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

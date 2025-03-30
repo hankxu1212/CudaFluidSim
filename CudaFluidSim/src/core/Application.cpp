@@ -9,6 +9,7 @@
 #include "resources/Resources.hpp"
 #include "utils/Timer.hpp"
 #include "utils/Logger.hpp"
+#include "Solver.hpp"
 
 Application* Application::s_Instance = nullptr;
 
@@ -32,6 +33,8 @@ Application::Application(const ApplicationSpecification& specification)
 
 	// bind window
 	Window::Get()->SetEventCallback(NE_BIND_EVENT_FN(Application::OnEvent));
+
+	PushLayer(new Solver());
 }
 
 Application::~Application()
