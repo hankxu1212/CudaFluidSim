@@ -38,3 +38,18 @@ std::vector<uint32_t> SpatialHashTable::Create(const std::vector<Particle>& sort
     }
     return particleTable;
 }
+
+void SpatialHashTable::CreateNonAlloc(const std::vector<Particle>& sortedParticles, std::vector<uint32_t>& out)
+{
+    memset(out.data(), NO_PARTICLE, out.size() * sizeof(uint32_t));
+
+    uint32_t prevHash = NO_PARTICLE;
+    for (size_t i = 0; i < sortedParticles.size(); ++i)
+    {
+        uint32_t currentHash = sortedParticles[i].hash;
+        if (currentHash != prevHash) {
+            out[currentHash] = i;
+            prevHash = currentHash;
+        }
+    }
+}

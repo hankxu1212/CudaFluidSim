@@ -7,6 +7,7 @@
 #include <omp.h>
 
 #include "utils/Time.hpp"
+#include "utils/Timer.hpp"
 
 #include "SpatialHashTable.hpp"
 
@@ -14,6 +15,8 @@
 #define WINDOW_WIDTH Window::Get()->m_Data.Width
 
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
+
+//#define PROFILE_TIMES
 
 Solver* Solver::s_Instance = nullptr;
 
@@ -230,17 +233,46 @@ void Solver::SpatialParallelComputeDensityPressure()
 
 		Particle& pi = m_Particles[i];
 
-		std::vector<uint32_t> neighbors = FindNearbyParticles(i);
+		glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
 
-		for (int neighbor = 0; neighbor < neighbors.size(); ++neighbor)
+		for (int x = -1; x <= 1; x++)
 		{
-			Particle& pj = m_Particles[neighbors[neighbor]];
+			for (int y = -1; y <= 1; y++)
+			{
+				glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+				if (adjacentCell.x < 0 && adjacentCell.y < 0) // boundary condition
+					continue;
 
-			float dist2 = glm::length2(pj.position - pi.position);
-			if (dist2 >= HSQ)
-				continue;
+				uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+				uint32_t thisCellsStartingIndex = m_ParticleHashTable[adjacentCellHash];
+				if (thisCellsStartingIndex == SpatialHashTable::NO_PARTICLE)
+					continue;
 
-			pDensity += MASS * POLY6 * pow(HSQ - dist2, 3.f);
+				while (thisCellsStartingIndex < m_Particles.size())
+				{
+					if (thisCellsStartingIndex == i)
+					{
+						thisCellsStartingIndex++;
+						continue;
+					}
+
+					if (m_Particles[thisCellsStartingIndex].hash != adjacentCellHash)
+						break;
+
+					Particle& pj = m_Particles[thisCellsStartingIndex];
+
+					float dist2 = glm::length2(pj.position - pi.position);
+					if (dist2 >= HSQ) 
+					{
+						thisCellsStartingIndex++;
+						continue;
+					}
+
+					pDensity += MASS * POLY6 * pow(HSQ - dist2, 3.f);
+
+					thisCellsStartingIndex++;
+				}
+			}
 		}
 
 		// Include self density (as itself isn't included in neighbour)
@@ -258,31 +290,60 @@ void Solver::SpatialParallelComputeForces()
 	for (int i = 0; i < m_Particles.size(); ++i)
 	{
 		Particle& pi = m_Particles[i];
-
-		std::vector<uint32_t> neighbors = FindNearbyParticles(i);
+		glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
 
 		glm::vec2 fpress(0.f, 0.f);
 		glm::vec2 fvisc(0.f, 0.f);
-		for (int neighbor = 0; neighbor < neighbors.size(); ++neighbor)
+
+		for (int x = -1; x <= 1; x++)
 		{
-			Particle& pj = m_Particles[neighbors[neighbor]];
+			for (int y = -1; y <= 1; y++)
+			{
+				glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+				if (adjacentCell.x < 0 && adjacentCell.y < 0) // boundary condition
+					continue;
 
-			float dist2 = glm::length2(pj.position - pi.position);
-			if (dist2 >= HSQ)
-				continue;
+				uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+				uint32_t thisCellsStartingIndex = m_ParticleHashTable[adjacentCellHash];
+				if (thisCellsStartingIndex == SpatialHashTable::NO_PARTICLE)
+					continue;
 
-			//unit direction and length
-			float dist = sqrt(dist2);
-			glm::vec2 dir = glm::normalize(pj.position - pi.position);
+				while (thisCellsStartingIndex < m_Particles.size())
+				{
+					if (thisCellsStartingIndex == i)
+					{
+						thisCellsStartingIndex++;
+						continue;
+					}
 
-			//apply pressure force
-			float mangitude = MASS * (pi.pressure + pj.pressure) / (2.0f * pj.density) * SPIKY_GRAD * pow(H - dist, 3);
-			glm::vec2 pressureForce = mangitude * -dir;
+					if (m_Particles[thisCellsStartingIndex].hash != adjacentCellHash)
+						break;
 
-			fpress += pressureForce;
+					Particle& pj = m_Particles[thisCellsStartingIndex];
 
-			//apply viscosity force
-			fvisc += VISC * MASS * (pj.velocity - pi.velocity) / pj.density * VISC_LAP * (H - dist);
+					float dist2 = glm::length2(pj.position - pi.position);
+					if (dist2 >= HSQ)
+					{
+						thisCellsStartingIndex++;
+						continue;
+					}
+
+					//unit direction and length
+					float dist = sqrt(dist2);
+					glm::vec2 dir = glm::normalize(pj.position - pi.position);
+
+					//apply pressure force
+					float mangitude = MASS * (pi.pressure + pj.pressure) / (2.0f * pj.density) * SPIKY_GRAD * pow(H - dist, 3);
+					glm::vec2 pressureForce = mangitude * -dir;
+
+					fpress += pressureForce;
+
+					//apply viscosity force
+					fvisc += VISC * MASS * (pj.velocity - pi.velocity) / pj.density * VISC_LAP * (H - dist);
+
+					thisCellsStartingIndex++;
+				}
+			}
 		}
 
 		glm::vec2 fgrav = G * MASS / pi.density;
@@ -290,7 +351,7 @@ void Solver::SpatialParallelComputeForces()
 	}
 }
 
-void Solver::CalculateHashes()
+void Solver::ParallelCalculateHashes()
 {
 	#pragma omp parallel for
 	for (int i = 0; i < m_Particles.size(); ++i)
@@ -301,8 +362,14 @@ void Solver::CalculateHashes()
 
 void Solver::SpatialParallelUpdate()
 {
+	Timer timer;
+
 	// each particle gets assigned a hash corresponding to a particular cell in the grid
-	CalculateHashes();
+	ParallelCalculateHashes();
+
+#ifdef PROFILE_TIMES
+	std::cout << "Calculate Hash. " << timer.GetElapsed(true) << " ms\n";
+#endif
 
 	// sort particles by the particle's hash
 	std::sort(
@@ -312,8 +379,19 @@ void Solver::SpatialParallelUpdate()
 		}
 	);
 
+#ifdef PROFILE_TIMES
+	std::cout << "Sort. " << timer.GetElapsed(true) << " ms\n";
+#endif
+
 	// m_ParticleHashTable[cell_hash] = starting particle index of that cell
-	m_ParticleHashTable = SpatialHashTable::Create(m_Particles);
+	m_ParticleHashTable.resize(SpatialHashTable::TABLE_SIZE);
+	SpatialHashTable::CreateNonAlloc(m_Particles, m_ParticleHashTable);
+
+#ifdef PROFILE_TIMES
+	std::cout << "Creating HashTable. " << timer.GetElapsed(true) << " ms\n";
+#endif
+
+#pragma region Debug
 
 	// the following section debugs the spatial hash table
 	//std::vector<uint32_t> availableHashes;
@@ -362,14 +440,25 @@ void Solver::SpatialParallelUpdate()
 	//{
 	//	m_Particles[i].debugColor = (float)SpatialHashTable::GetHashFromParticle(m_Particles[i], CELL_SIZE) / SpatialHashTable::TABLE_SIZE;
 	//}
+#pragma endregion
 
 	SpatialParallelComputeDensityPressure();
-	//ComputeDensityPressure();
+
+#ifdef PROFILE_TIMES
+	std::cout << "Compute Density Pressure. " << timer.GetElapsed(true) << " ms\n";
+#endif
 
 	SpatialParallelComputeForces();
-	//ComputeForces();
+
+#ifdef PROFILE_TIMES
+	std::cout << "Compute Forces. " << timer.GetElapsed(true) << " ms\n";
+#endif
 
 	Integrate(DT);
+
+#ifdef PROFILE_TIMES
+	std::cout << "Integrate. " << timer.GetElapsed(true) << " ms\n";
+#endif
 }
 
 std::vector<uint32_t> Solver::FindNearbyParticles(int sortedPid)

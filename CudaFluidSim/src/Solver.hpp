@@ -13,13 +13,13 @@ public:
 	// "Particle-Based Fluid Simulation for Interactive Applications" by Müller et al.
 
 	// solver parameters
-	constexpr static int H = 12;				// kernel radius
+	constexpr static int H = 8;				// kernel radius
 	constexpr static int CELL_SIZE = H * 2;		// spatial grid size
 	constexpr static float HSQ = H * H;		   // radius^2 for optimization
 	constexpr static float REST_DENS = 300.f;  // rest density
 	constexpr static float GAS_CONST = 2000.f; // const for equation of state
 	constexpr static float MASS = 2.5f;		   // assume all particles have the same mass
-	constexpr static float VISC = 2000.f;	   // viscosity constant
+	constexpr static float VISC = 1500.f;	   // viscosity constant
 	constexpr static float DT = 0.0005f;       // simulation delta time
 
 	// smoothing kernels defined in Müller and their gradients
@@ -29,13 +29,13 @@ public:
 	float VISC_LAP;
 
 	// interaction
-	const static int NUM_PARTICLES = 2000;
+	const static int NUM_PARTICLES = 10000;
 
 	// rendering projection parameters
 
 	// simulation parameters
 	constexpr static float EPS = H; // boundary epsilon
-	constexpr static float BOUND_DAMPING = -0.1f;
+	constexpr static float BOUND_DAMPING = -0.8f;
 	
 	std::vector<Particle> m_Particles;
 
@@ -74,7 +74,7 @@ private:
 
 	void SpatialParallelComputeForces();
 
-	void CalculateHashes();
+	void ParallelCalculateHashes();
 
 	void SpatialParallelUpdate();
 

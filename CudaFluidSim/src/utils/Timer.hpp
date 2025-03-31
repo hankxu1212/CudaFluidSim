@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chrono>
-#include "Core.hpp"
+#include "core/Core.hpp"
 
 using namespace std::chrono_literals;
 

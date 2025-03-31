@@ -19,4 +19,7 @@ public:
 
     // Creates the particle neighbor hash table.
     static std::vector<uint32_t> Create(const std::vector<Particle>& sortedParticles);
+
+    // an optimized version for filling a table instead of creating one each time
+    static void CreateNonAlloc(const std::vector<Particle>& sortedParticles, std::vector<uint32_t>& out);
 };
