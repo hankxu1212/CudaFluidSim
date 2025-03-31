@@ -329,6 +329,14 @@
     <ClInclude Include="library\glm\glm\vec3.hpp" />
     <ClInclude Include="library\glm\glm\vec4.hpp" />
     <ClInclude Include="library\glm\glm\vector_relational.hpp" />
+    <ClInclude Include="library\libmorton\include\morton.h" />
+    <ClInclude Include="library\libmorton\include\morton2D.h" />
+    <ClInclude Include="library\libmorton\include\morton2D_LUTs.h" />
+    <ClInclude Include="library\libmorton\include\morton3D.h" />
+    <ClInclude Include="library\libmorton\include\morton3D_LUTs.h" />
+    <ClInclude Include="library\libmorton\include\morton_BMI.h" />
+    <ClInclude Include="library\libmorton\include\morton_common.h" />
+    <ClInclude Include="library\libmorton\include\morton_LUT_generators.h" />
     <ClInclude Include="src\core\Texture.h" />
     <ClInclude Include="src\math\color\Color.hpp" />
     <ClInclude Include="src\math\color\Color3.hpp" />
@@ -549,15 +557,16 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
-    <IncludePath>library\glfw-3.4.bin.WIN64\include;src\;library\glm;library\glad\include;$(IncludePath)</IncludePath>
+    <IncludePath>library\glfw-3.4.bin.WIN64\include;src\;library\glm;library\glad\include;library\libmorton\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <PreprocessorDefinitions>WIN32;WIN64;GLFW_INCLUDE_NONE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/openmp %(AdditionalOptions)</AdditionalOptions>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

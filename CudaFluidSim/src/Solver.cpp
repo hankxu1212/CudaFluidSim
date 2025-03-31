@@ -9,15 +9,13 @@
 #include "utils/Time.hpp"
 #include "utils/Timer.hpp"
 
-#include "SpatialHashTable.hpp"
-
 #define WINDOW_HEIGHT Window::Get()->m_Data.Height
 #define WINDOW_WIDTH Window::Get()->m_Data.Width
 
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
 
 //#define PROFILE_TIMES
-#define PROFILE_FRAME_TIME
+//#define PROFILE_FRAME_TIME
 
 Solver* Solver::s_Instance = nullptr;
 
@@ -118,7 +116,7 @@ void Solver::InitSPH()
 		float x = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * cos(angle) + WINDOW_HEIGHT / 5;
 		float y = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * sin(angle);
 
-		m_Particles.emplace_back(x, y, i, 0);
+		m_Particles[i] = Particle(x, y, i, 0);
 	}
 
 	std::cout << "Initializing " << m_Particles.size() << " particles" << std::endl;
@@ -236,6 +234,7 @@ void Solver::SpatialParallelComputeDensityPressure()
 
 		glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
 
+		#pragma omp parallel for reduction(+: pDensity)
 		for (int x = -1; x <= 1; x++)
 		{
 			for (int y = -1; y <= 1; y++)
@@ -296,6 +295,7 @@ void Solver::SpatialParallelComputeForces()
 		glm::vec2 fpress(0.f, 0.f);
 		glm::vec2 fvisc(0.f, 0.f);
 
+		#pragma omp parallel for
 		for (int x = -1; x <= 1; x++)
 		{
 			for (int y = -1; y <= 1; y++)
@@ -385,8 +385,7 @@ void Solver::SpatialParallelUpdate()
 #endif
 
 	// m_ParticleHashTable[cell_hash] = starting particle index of that cell
-	m_ParticleHashTable.resize(SpatialHashTable::TABLE_SIZE);
-	SpatialHashTable::CreateNonAlloc(m_Particles, m_ParticleHashTable);
+	SpatialHashTable::CreateNonAlloc(m_Particles.data(), NUM_PARTICLES, m_ParticleHashTable.data());
 
 #ifdef PROFILE_TIMES
 	std::cout << "Creating HashTable. " << timer.GetElapsed(true) << " ms\n";

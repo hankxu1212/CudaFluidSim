@@ -3,6 +3,8 @@
 #include "window/Window.hpp"
 #include "Particle.hpp"
 #include "events/KeyEvent.hpp"
+#include <array>
+#include "SpatialHashTable.hpp"
 
 class Solver : public Layer
 {
@@ -37,7 +39,7 @@ public:
 	constexpr static float EPS = H; // boundary epsilon
 	constexpr static float BOUND_DAMPING = -0.8f;
 	
-	std::vector<Particle> m_Particles;
+	std::array<Particle, NUM_PARTICLES> m_Particles;
 
 	uint32_t numThreads;
 
@@ -80,10 +82,10 @@ private:
 
 	void SpatialParallelUpdate();
 
-	// should rarely be used...
+	// should rarely be used since vector emplaces are expensive
 	std::vector<uint32_t> FindNearbyParticles(int sortedPid);
 
-	std::vector<uint32_t> m_ParticleHashTable;
+	std::array<uint32_t, SpatialHashTable::TABLE_SIZE> m_ParticleHashTable;
 
 #pragma endregion
 
