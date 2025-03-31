@@ -6,7 +6,6 @@
 #include "window/Window.hpp"
 #include "input/NativeInput.hpp"
 
-#include "resources/Resources.hpp"
 #include "utils/Timer.hpp"
 #include "utils/Logger.hpp"
 #include "Solver.hpp"

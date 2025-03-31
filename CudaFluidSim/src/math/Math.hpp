@@ -7,10 +7,6 @@
 #include "vector/Vec3.h"
 #include "vector/Vec4.h"
 
-#include "matrix/Mat2.h"
-#include "matrix/Mat3.h"
-#include "matrix/Mat4.h"
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 

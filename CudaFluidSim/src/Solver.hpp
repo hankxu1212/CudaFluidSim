@@ -29,7 +29,7 @@ public:
 	float VISC_LAP;
 
 	// interaction
-	const static int NUM_PARTICLES = 10000;
+	const static int NUM_PARTICLES = 20000;
 
 	// rendering projection parameters
 
@@ -38,6 +38,8 @@ public:
 	constexpr static float BOUND_DAMPING = -0.8f;
 	
 	std::vector<Particle> m_Particles;
+
+	uint32_t numThreads;
 
 	Solver();
 
@@ -78,6 +80,7 @@ private:
 
 	void SpatialParallelUpdate();
 
+	// should rarely be used...
 	std::vector<uint32_t> FindNearbyParticles(int sortedPid);
 
 	std::vector<uint32_t> m_ParticleHashTable;

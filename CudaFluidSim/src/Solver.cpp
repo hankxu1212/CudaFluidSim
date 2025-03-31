@@ -17,6 +17,7 @@
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
 
 //#define PROFILE_TIMES
+#define PROFILE_FRAME_TIME
 
 Solver* Solver::s_Instance = nullptr;
 
@@ -28,7 +29,7 @@ Solver::Solver()
 	SPIKY_GRAD = -10.f / (glm::pi<float>() * pow(H, 5.f));
 	VISC_LAP = 40.f / (glm::pi<float>() * pow(H, 5.f));
 
-	uint32_t numThreads = Application::GetSpecification().numThreads;
+	numThreads = Application::GetSpecification().numThreads;
 	std::cout << "Solving with " << numThreads << " OpenMP threads.\n";
 
 	omp_set_num_threads(numThreads);
@@ -240,7 +241,7 @@ void Solver::SpatialParallelComputeDensityPressure()
 			for (int y = -1; y <= 1; y++)
 			{
 				glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
-				if (adjacentCell.x < 0 && adjacentCell.y < 0) // boundary condition
+				if (adjacentCell.x < 0 || adjacentCell.y < 0) // boundary condition
 					continue;
 
 				uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
@@ -300,7 +301,7 @@ void Solver::SpatialParallelComputeForces()
 			for (int y = -1; y <= 1; y++)
 			{
 				glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
-				if (adjacentCell.x < 0 && adjacentCell.y < 0) // boundary condition
+				if (adjacentCell.x < 0 || adjacentCell.y < 0) // boundary condition
 					continue;
 
 				uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
@@ -458,6 +459,10 @@ void Solver::SpatialParallelUpdate()
 
 #ifdef PROFILE_TIMES
 	std::cout << "Integrate. " << timer.GetElapsed(true) << " ms\n";
+#endif
+
+#ifdef PROFILE_FRAME_TIME
+	std::cout << "Solver total time. " << timer.GetElapsed(true) << " ms\n";
 #endif
 }
 
