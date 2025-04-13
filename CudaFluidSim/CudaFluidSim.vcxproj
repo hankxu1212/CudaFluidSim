@@ -14,6 +14,14 @@
     <ClCompile Include="library\glad\src\glad.c" />
     <ClCompile Include="library\glm\glm\detail\glm.cpp" />
     <ClCompile Include="library\glm\glm\glm.cppm" />
+    <ClCompile Include="library\imgui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="library\imgui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="library\imgui\imgui.cpp" />
+    <ClCompile Include="library\imgui\imgui_demo.cpp" />
+    <ClCompile Include="library\imgui\imgui_draw.cpp" />
+    <ClCompile Include="library\imgui\imgui_tables.cpp" />
+    <ClCompile Include="library\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="library\imgui\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="src\core\Texture.cpp" />
     <ClCompile Include="src\math\color\Color.cpp" />
     <ClCompile Include="src\math\color\Color3.cpp" />
@@ -35,6 +43,7 @@
     <ClCompile Include="src\utils\Bitmap.cpp" />
     <ClCompile Include="src\utils\String.cpp" />
     <ClCompile Include="src\window\Window.cpp" />
+    <ClCompile Include="src\UIRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="library\glad\include\glad\glad.h" />
@@ -329,6 +338,17 @@
     <ClInclude Include="library\glm\glm\vec3.hpp" />
     <ClInclude Include="library\glm\glm\vec4.hpp" />
     <ClInclude Include="library\glm\glm\vector_relational.hpp" />
+    <ClInclude Include="library\imgui\backends\imgui_impl_glfw.h" />
+    <ClInclude Include="library\imgui\backends\imgui_impl_opengl3.h" />
+    <ClInclude Include="library\imgui\backends\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="library\imgui\imconfig.h" />
+    <ClInclude Include="library\imgui\imgui.h" />
+    <ClInclude Include="library\imgui\imgui_internal.h" />
+    <ClInclude Include="library\imgui\imstb_rectpack.h" />
+    <ClInclude Include="library\imgui\imstb_textedit.h" />
+    <ClInclude Include="library\imgui\imstb_truetype.h" />
+    <ClInclude Include="library\imgui\misc\cpp\imgui_stdlib.h" />
+    <ClInclude Include="library\imgui\misc\single_file\imgui_single_file.h" />
     <ClInclude Include="library\libmorton\include\morton.h" />
     <ClInclude Include="library\libmorton\include\morton2D.h" />
     <ClInclude Include="library\libmorton\include\morton2D_LUTs.h" />
@@ -375,6 +395,7 @@
     <ClInclude Include="src\utils\String.hpp" />
     <ClInclude Include="src\utils\Type.hpp" />
     <ClInclude Include="src\window\Window.hpp" />
+    <ClInclude Include="src\UIRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="library\glfw-3.4.bin.WIN64\lib-vc2022\glfw3.dll" />
@@ -557,7 +578,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
-    <IncludePath>library\glfw-3.4.bin.WIN64\include;src\;library\glm;library\glad\include;library\libmorton\include;$(IncludePath)</IncludePath>
+    <IncludePath>library\glfw-3.4.bin.WIN64\include;src\;library\glm;library\glad\include;library\libmorton\include;library\imgui;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

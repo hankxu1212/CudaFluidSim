@@ -9,15 +9,17 @@
 #include "SpatialHashTable.hpp"
 #include "Solver.hpp"
 
+#include "UIRenderer.h"
+
 Renderer::Renderer()
 {
     if (Application::GetSpecification().headless)
         return;
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-	{
-		std::cout << "Failed to initialize GLAD" << std::endl;
-	}
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+    }
 
 	const std::string pathRelativeToExecutable = "../../CudaFluidSim/src/";
 
@@ -88,6 +90,8 @@ void Renderer::Update()
     }
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    UIRenderer::Get()->RenderUIFinalize();
 
     glfwSwapBuffers(Window::Get()->nativeWindow);
 }
