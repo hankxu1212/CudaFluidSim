@@ -9,13 +9,16 @@
 #include "utils/Time.hpp"
 #include "utils/Timer.hpp"
 
+#include <execution>
+
+#include <imgui.h>
+
 #define WINDOW_HEIGHT Window::Get()->m_Data.Height
 #define WINDOW_WIDTH Window::Get()->m_Data.Width
 
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
 
-#define PROFILE_TIMES
-//#define PROFILE_FRAME_TIME
+//#define PROFILE_TIMES
 
 Solver* Solver::s_Instance = nullptr;
 
@@ -23,36 +26,7 @@ Solver::Solver()
 {
 	s_Instance = this;
 
-	POLY6 = 4.f / (glm::pi<float>() * pow(H, 8.f));
-	SPIKY_GRAD = -10.f / (glm::pi<float>() * pow(H, 5.f));
-	VISC_LAP = 40.f / (glm::pi<float>() * pow(H, 5.f));
-
-	numThreads = Application::GetSpecification().numThreads;
-	std::cout << "Solving with " << numThreads << " OpenMP threads.\n";
-
-	omp_set_num_threads(numThreads);
-
-	auto accelerationMode = Application::GetSpecification().accelerationMode;
-
-	switch (accelerationMode)
-	{
-	case ApplicationSpecification::Naive:
-		std::cout << "Acceleration method: Naive\n";
-		InitSPH();
-		break;
-
-	case ApplicationSpecification::Spatial:
-	case ApplicationSpecification::SpatialCombinedSIMD:
-	case ApplicationSpecification::SpatialSOA:
-		std::cout << "Acceleration method: Spatial Hashing\n";
-		SpatialParallelInitSPH();
-		break;
-
-	case ApplicationSpecification::GPU:
-		std::cout << "Acceleration method: GPU\n";
-		KernelInitSPH();
-		break;
-	}
+	OnRestart();
 }
 
 Solver::~Solver()
@@ -61,8 +35,15 @@ Solver::~Solver()
 
 void Solver::OnUpdate()
 {
-	if (isPaused)
+	if (Paused)
 		return;
+
+	if (Restart) {
+		OnRestart();
+		Restart = false;
+	}
+
+	Timer totalTimer;
 
 	auto accelerationMode = Application::GetSpecification().accelerationMode;
 
@@ -75,8 +56,7 @@ void Solver::OnUpdate()
 		break;
 
 	case ApplicationSpecification::Spatial:
-	case ApplicationSpecification::SpatialCombinedSIMD:
-	case ApplicationSpecification::SpatialSOA:
+	case ApplicationSpecification::SpatialCombined:
 		SpatialParallelUpdate();
 		break;
 
@@ -87,6 +67,8 @@ void Solver::OnUpdate()
 		KernelIntegrate(DT);
 		break;
 	}
+
+	LastFrameUpdateTime = totalTimer.GetElapsed(true);
 }
 
 void Solver::OnEvent(Event& e)
@@ -102,25 +84,73 @@ bool Solver::OnKeyPressed(KeyPressedEvent& e)
 	switch (e.m_KeyCode)
 	{
 	case Key::Escape:
-		isPaused = !isPaused;
+		Paused = !Paused;
 		break;
 	}
 
 	return false;
 }
 
+
+void Solver::OnRestart()
+{
+	numThreads = Application::GetSpecification().numThreads;
+	std::cout << "Solving with " << numThreads << " OpenMP threads.\n";
+
+	omp_set_num_threads(numThreads);
+
+	auto accelerationMode = Application::GetSpecification().accelerationMode;
+
+	switch (accelerationMode)
+	{
+	case ApplicationSpecification::Naive:
+		std::cout << "Acceleration method: Naive\n";
+		InitSPH();
+		break;
+
+	case ApplicationSpecification::Spatial:
+	case ApplicationSpecification::SpatialCombined:
+		std::cout << "Acceleration method: Spatial Hashing\n";
+		SpatialParallelInitSPH();
+		break;
+
+	case ApplicationSpecification::GPU:
+		std::cout << "Acceleration method: GPU\n";
+		KernelInitSPH();
+		break;
+	}
+}
+
+// Inside your Solver class implementation
+void Solver::OnImGuiRender()
+{
+	ImGui::BulletText("Number of Particles: %d", NUM_PARTICLES);
+	ImGui::BulletText("Smoothing Kernel: %.2f", H);
+
+	if (Paused)
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Solver: Paused");
+	else
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Solver: Running");
+
+	if (ImGui::Button(Paused ? "Resume" : "Pause"))
+		Paused = !Paused;
+
+	if (ImGui::Button("Restart Simulation"))
+		Restart = true; // consumed in next update loop
+}
+
+
 void Solver::InitSPH()
 {
-	for (int i = 0; i < NUM_PARTICLES; ++i) {
-		// Calculate random angle
+	for (int i = 0; i < NUM_PARTICLES; ++i) 
+	{
 		float angle = Math::Random(0, 2.0f * 3.1415f);
 		float r = Math::Random();
 
-		// Calculate random position on circle
 		float x = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * cos(angle) + WINDOW_HEIGHT / 5;
 		float y = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * sin(angle);
 
-		m_Particles[i] = Particle(x, y, i, 0);
+		m_Particles[i] = Particle(x, y);
 	}
 
 	std::cout << "Initializing " << m_Particles.size() << " particles" << std::endl;
@@ -128,36 +158,30 @@ void Solver::InitSPH()
 
 void Solver::Integrate(float dt)
 {
-	#pragma omp parallel for
-	for (int i = 0; i < m_Particles.size(); ++i)
-	{
-		auto& p = m_Particles[i];
+	constexpr float inv_damping = 1.0f - BOUND_DAMPING;
+	const float window_width = WINDOW_WIDTH - EPS;
+	const float window_height = WINDOW_HEIGHT - EPS;
 
-		// forward Euler integration
-		p.velocity += dt * p.force / p.density;
+	#pragma omp parallel for schedule(static, 64)
+	for (int i = 0; i < m_Particles.size(); ++i) {
+		auto& p = m_Particles[i];
+		const float inv_rho = 1.0f / p.density;
+
+		// Vectorized integration
+		p.velocity += dt * p.force * inv_rho;
 		p.position += dt * p.velocity;
 
-		// enforce boundary conditions
-		if (p.position[0] - EPS < 0.f)
-		{
-			p.velocity[0] *= BOUND_DAMPING;
-			p.position[0] = EPS;
-		}
-		if (p.position[0] + EPS > WINDOW_WIDTH)
-		{
-			p.velocity[0] *= BOUND_DAMPING;
-			p.position[0] = WINDOW_WIDTH - EPS;
-		}
-		if (p.position[1] - EPS < 0.f)
-		{
-			p.velocity[1] *= BOUND_DAMPING;
-			p.position[1] = EPS;
-		}
-		if (p.position[1] + EPS > WINDOW_HEIGHT)
-		{
-			p.velocity[1] *= BOUND_DAMPING;
-			p.position[1] = WINDOW_HEIGHT - EPS;
-		}
+		// Branchless boundary handling
+		const bool x_min = p.position[0] < EPS;
+		const bool x_max = p.position[0] > window_width;
+		const bool y_min = p.position[1] < EPS;
+		const bool y_max = p.position[1] > window_height;
+
+		p.velocity[0] *= x_min || x_max ? inv_damping : 1.0f;
+		p.velocity[1] *= y_min || y_max ? inv_damping : 1.0f;
+
+		p.position[0] = x_min ? EPS : (x_max ? window_width : p.position[0]);
+		p.position[1] = y_min ? EPS : (y_max ? window_height : p.position[1]);
 	}
 }
 
@@ -360,17 +384,17 @@ void Solver::SpatialParallelComputeCombined()
 {
 	#pragma omp parallel
 	{
-		#pragma omp for schedule(dynamic, 32)
+		#pragma omp for schedule(dynamic, 32) 
 		for (int i = 0; i < NUM_PARTICLES; ++i)
 		{
 			float pDensity = 0;
 			Particle& pi = m_Particles[i];
 			const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
 
-			#pragma omp simd reduction(+:pDensity)
+			#pragma omp parallel for reduction(+:pDensity) schedule(static)
 			for (int xy = 0; xy < 9; xy++) {
-				int x = xy / 3 - 1;  // Converts 0-8 to -1 to +1
-				int y = xy % 3 - 1;
+				const int x = xy / 3 - 1;  // Converts 0-8 to -1 to +1
+				const int y = xy % 3 - 1;
 				const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
 				if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
 
@@ -406,10 +430,10 @@ void Solver::SpatialParallelComputeCombined()
 			float fpress_x = 0.f, fpress_y = 0.f;
 			float fvisc_x = 0.f, fvisc_y = 0.f;
 
-			#pragma omp simd reduction(+:fpress_x,fpress_y,fvisc_x,fvisc_y)
+			#pragma omp parallel for reduction(+:fpress_x,fpress_y,fvisc_x,fvisc_y) schedule(static)
 			for (int xy = 0; xy < 9; xy++) {
-				int x = xy / 3 - 1;  // Converts 0-8 to -1 to +1
-				int y = xy % 3 - 1;
+				const int x = xy / 3 - 1;  // Converts 0-8 to -1 to +1
+				const int y = xy % 3 - 1;
 				const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
 				if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
 
@@ -448,145 +472,79 @@ void Solver::SpatialParallelComputeCombined()
 	}
 }
 
-void Solver::SpatialParallelComputeTasks()
-{
-	/*
-	const int num_particles = m_Particles.size();
-	const int task_size = 16; // Particles per task (adjust based on your system)
+// Parallel merge sort implemented in a bottom-up iterative fashion.
+// This version does not use OpenMP tasks.
+template <typename RandomAccessIterator, typename Compare>
+void parallel_merge_sort(RandomAccessIterator begin, RandomAccessIterator end, Compare comp) {
+	typedef typename std::iterator_traits<RandomAccessIterator>::value_type T;
+	const size_t n = std::distance(begin, end);
+	if (n <= 1) return;
 
-	// Density and pressure computation
-#pragma omp parallel
-#pragma omp single nowait
-	{
-		for (int i = 0; i < num_particles; i += task_size) {
-			const int start = i;
-			const int end = std::min(i + task_size, num_particles);
+	// Choose a block size for the initial sort.
+	// Smaller blocks are sorted with std::sort; you can tune this parameter.
+	const size_t BLOCK_SIZE = 32;
 
-#pragma omp task firstprivate(start, end) 
-			{
-				for (int p = start; p < end; p++) {
-					float pDensity = 0;
-					Particle& pi = m_Particles[p];
-					const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
+	// Create a temporary buffer to hold merged data.
+	std::vector<T> buffer(begin, end);
 
-					for (int x = -1; x <= 1; x++) {
-						for (int y = -1; y <= 1; y++) {
-							const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
-							if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
-
-							const uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
-							uint32_t idx = m_ParticleHashTable[adjacentCellHash];
-							if (idx == SpatialHashTable::NO_PARTICLE) continue;
-
-							while (idx < num_particles) {
-								if (m_Particles[idx].hash != adjacentCellHash) break;
-								if (idx != p) {
-									const float dist2 = glm::length2(m_Particles[idx].position - pi.position);
-									if (dist2 < HSQ) {
-										pDensity += MASS * POLY6 * pow(HSQ - dist2, 3.f);
-									}
-								}
-								idx++;
-							}
-						}
-					}
-
-					pi.density = pDensity + MASS * POLY6 * pow(HSQ, 3.f);
-					pi.pressure = std::max(GAS_CONST * (pi.density - REST_DENS), 0.0f);
-				}
-			}
-		}
+	// Phase 1: Sort each individual block (of size BLOCK_SIZE) in parallel.
+#pragma omp parallel for schedule(dynamic)
+	for (int i = 0; i < n; i += BLOCK_SIZE) {
+		size_t block_end = std::min(i + BLOCK_SIZE, n);
+		std::sort(begin + i, begin + block_end, comp);
 	}
 
-	// Force computation
-#pragma omp parallel
-#pragma omp single nowait
-	{
-		for (int i = 0; i < num_particles; i += task_size) {
-			const int start = i;
-			const int end = std::min(i + task_size, num_particles);
-
-#pragma omp task firstprivate(start, end)
-			{
-				for (int p = start; p < end; p++) {
-					Particle& pi = m_Particles[p];
-					const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
-
-					glm::vec2 fpress(0.f, 0.f);
-					glm::vec2 fvisc(0.f, 0.f);
-
-					for (int x = -1; x <= 1; x++) {
-						for (int y = -1; y <= 1; y++) {
-							const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
-							if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
-
-							const uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
-							uint32_t idx = m_ParticleHashTable[adjacentCellHash];
-							if (idx == SpatialHashTable::NO_PARTICLE) continue;
-
-							while (idx < num_particles) {
-								if (m_Particles[idx].hash != adjacentCellHash) break;
-								if (idx != p) {
-									const Particle& pj = m_Particles[idx];
-									float dist2 = glm::length2(pj.position - pi.position);
-									if (dist2 < HSQ) {
-										float dist = sqrt(dist2);
-										glm::vec2 dir = (dist > 0) ?
-											(pj.position - pi.position) / dist : glm::vec2(0.f);
-
-										// Pressure force
-										float magnitude = -MASS * (pi.pressure + pj.pressure) /
-											(2.0f * pj.density) * SPIKY_GRAD * pow(H - dist, 3);
-										fpress += magnitude * dir;
-
-										// Viscosity force
-										fvisc += VISC * MASS * (pj.velocity - pi.velocity) /
-											pj.density * VISC_LAP * (H - dist);
-									}
-								}
-								idx++;
-							}
-						}
-					}
-
-					glm::vec2 fgrav = G * MASS / pi.density;
-					pi.force = fpress + fvisc + fgrav;
-				}
+	// Phase 2: Iteratively merge adjacent sorted blocks.
+	// We alternate between merging from the original array to the buffer and vice versa.
+	bool from_original = true;
+	// width: current size of subarrays to merge.
+	for (size_t width = BLOCK_SIZE; width < n; width *= 2) {
+#pragma omp parallel for schedule(dynamic)
+		for (int i = 0; i < n; i += 2 * width) {
+			size_t mid = std::min(i + width, n);
+			size_t end_i = std::min(i + 2 * width, n);
+			if (from_original) {
+				std::merge(begin + i, begin + mid,
+					begin + mid, begin + end_i,
+					buffer.begin() + i, comp);
+			}
+			else {
+				std::merge(buffer.begin() + i, buffer.begin() + mid,
+					buffer.begin() + mid, buffer.begin() + end_i,
+					begin + i, comp);
 			}
 		}
+		from_original = !from_original;
 	}
 
-#pragma omp taskwait
-*/
-}
-
-void Solver::ParallelCalculateHashes()
-{
-	#pragma omp parallel for
-	for (int i = 0; i < m_Particles.size(); ++i)
-	{
-		m_Particles[i].hash = SpatialHashTable::GetHashFromParticle(m_Particles[i], CELL_SIZE);
+	// If the final merge ended in the buffer, copy the result back.
+	if (!from_original) {
+		std::copy(buffer.begin(), buffer.end(), begin);
 	}
 }
 
 void Solver::SpatialParallelUpdate()
 {
+#ifdef PROFILE_TIMES
 	Timer timer;
+#endif
 
 	// each particle gets assigned a hash corresponding to a particular cell in the grid
-	ParallelCalculateHashes();
+	#pragma omp parallel for schedule(static)
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
+		m_Particles[i].hash = SpatialHashTable::GetHashFromParticle(m_Particles[i], CELL_SIZE);
+	}
 
 #ifdef PROFILE_TIMES
 	std::cout << "Calculate Hash. " << timer.GetElapsed(true) << " ms\n";
 #endif
 
-	// sort particles by the particle's hash
-	std::sort(
-		m_Particles.begin(), m_Particles.end(),
+	// sort particles in parallel by the particle's hash
+	std::sort(m_Particles.begin(), m_Particles.end(),
 		[&](const Particle& i, const Particle& j) {
 			return i.hash < j.hash;
-		}
-	);
+		});
 
 #ifdef PROFILE_TIMES
 	std::cout << "Sort. " << timer.GetElapsed(true) << " ms\n";
@@ -606,12 +564,8 @@ void Solver::SpatialParallelUpdate()
 		SpatialParallelComputeForces();
 		break;
 
-	case ApplicationSpecification::SpatialCombinedSIMD:
+	case ApplicationSpecification::SpatialCombined:
 		SpatialParallelComputeCombined();
-		break;
-
-	case ApplicationSpecification::SpatialSOA:
-		SpatialParallelComputeTasks();
 		break;
 	}
 
@@ -623,10 +577,6 @@ void Solver::SpatialParallelUpdate()
 
 #ifdef PROFILE_TIMES
 	std::cout << "Integrate. " << timer.GetElapsed(true) << " ms\n";
-#endif
-
-#ifdef PROFILE_FRAME_TIME
-	std::cout << "Solver total time. " << timer.GetElapsed(true) << " ms\n";
 #endif
 }
 

@@ -18,6 +18,10 @@ public:
 
 	void Update();
 
+	void OnImGuiRender();
+
+	bool Disabled = false;
+
 private:
 	Shader shader;
 	unsigned int VAO;

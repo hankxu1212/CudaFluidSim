@@ -10,12 +10,10 @@
 #include "Solver.hpp"
 
 #include "UIRenderer.h"
+#include "imgui.h"
 
 Renderer::Renderer()
 {
-    if (Application::GetSpecification().headless)
-        return;
-
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -70,11 +68,19 @@ Renderer::~Renderer()
 // update is called in Render stage
 void Renderer::Update()
 {
-    if (Application::GetSpecification().headless)
-        return;
-
     glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    if (Disabled) 
+    {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        UIRenderer::Get()->RenderUIFinalize();
+        glfwSwapBuffers(Window::Get()->nativeWindow);
+        return;
+    }
+
+    if (Application::GetSpecification().headless)
+        return;
 
     // render particles
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -82,7 +88,7 @@ void Renderer::Update()
     const auto& particles = Solver::Get()->m_Particles;
     for (const auto& particle : particles)
     {
-        this->shader.SetFloat("particleRGB", particle.debugColor);
+        this->shader.SetFloat("particleRGB", 0);
         this->shader.SetVector2f("center", particle.position);
         glBindVertexArray(this->VAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -94,4 +100,15 @@ void Renderer::Update()
     UIRenderer::Get()->RenderUIFinalize();
 
     glfwSwapBuffers(Window::Get()->nativeWindow);
+}
+
+void Renderer::OnImGuiRender()
+{
+    if (ImGui::Button(Disabled ? "Enable Renderer" : "Disable Renderer"))
+        Disabled = !Disabled;
+
+    if (Disabled)
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Renderer: Disabled");
+    else
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Renderer: Enabled");
 }

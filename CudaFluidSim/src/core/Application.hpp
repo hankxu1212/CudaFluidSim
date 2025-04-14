@@ -34,7 +34,7 @@ struct ApplicationSpecification
 
 	enum AccelerationMode
 	{
-		Naive, Spatial, SpatialCombinedSIMD, SpatialSOA, GPU
+		Naive, Spatial, SpatialCombined, GPU
 	};
 
 	// parallel mode
@@ -63,8 +63,11 @@ public:
 
 	void Close();
 
+	void OnImGuiRender();
+
 	static const char* GetArgs() { return s_Instance->GetSpecification().CommandLineArgs.Args[0]; }
 	static const ApplicationSpecification& GetSpecification() { return s_Instance->m_Specification; }
+	static ApplicationSpecification& GetSpecificationUnsafe() { return s_Instance->m_Specification; }
 	static const uint16_t GetFPS() { return s_Instance->m_FPS; }
 	static const LayerStack& GetLayerStack() { return s_Instance->m_LayerStack; }
 	static bool IsMinimized() { return s_Instance->m_Minimized; }

@@ -1,9 +1,11 @@
 #pragma once
 
+#include <array>
+
 #include "window/Window.hpp"
 #include "Particle.hpp"
 #include "events/KeyEvent.hpp"
-#include <array>
+#include "SolverConfiguration.hpp"
 #include "SpatialHashTable.hpp"
 
 class Solver : public Layer
@@ -12,33 +14,6 @@ public:
 	static Solver* Get() { return s_Instance; }
 	static Solver* s_Instance;
 
-	// "Particle-Based Fluid Simulation for Interactive Applications" by Müller et al.
-
-	// solver parameters
-	constexpr static int H = 8;				// kernel radius
-	constexpr static int CELL_SIZE = H * 2;		// spatial grid size
-	constexpr static float HSQ = H * H;		   // radius^2 for optimization
-	constexpr static float REST_DENS = 300.f;  // rest density
-	constexpr static float GAS_CONST = 2000.f; // const for equation of state
-	constexpr static float MASS = 2.5f;		   // assume all particles have the same mass
-	constexpr static float VISC = 1500.f;	   // viscosity constant
-	constexpr static float DT = 0.0005f;       // simulation delta time
-
-	// smoothing kernels defined in Müller and their gradients
-	// adapted to 2D per "SPH Based Shallow Water Simulation" by Solenthaler et al.
-	float POLY6;
-	float SPIKY_GRAD;
-	float VISC_LAP;
-
-	// interaction
-	const static int NUM_PARTICLES = 20000;
-
-	// rendering projection parameters
-
-	// simulation parameters
-	constexpr static float EPS = H; // boundary epsilon
-	constexpr static float BOUND_DAMPING = -0.8f;
-	
 	std::array<Particle, NUM_PARTICLES> m_Particles;
 
 	uint32_t numThreads;
@@ -53,9 +28,15 @@ public:
 
 	bool OnKeyPressed(KeyPressedEvent& e);
 
+	void OnImGuiRender() override;
+
+	bool Paused = false;
+	bool Restart = false;
+	float LastFrameUpdateTime;
+
 private:
 
-	bool isPaused = false;
+	void OnRestart();
 
 	// forward euler integration with fixed delta time
 	void Integrate(float dt);
@@ -79,10 +60,6 @@ private:
 	void SpatialParallelComputeForces();
 
 	void SpatialParallelComputeCombined();
-
-	void SpatialParallelComputeTasks();
-
-	void ParallelCalculateHashes();
 
 	void SpatialParallelUpdate();
 

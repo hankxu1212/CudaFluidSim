@@ -9,6 +9,7 @@
 #include "utils/Timer.hpp"
 #include "utils/Logger.hpp"
 #include "Solver.hpp"
+#include "imgui.h"
 
 Application* Application::s_Instance = nullptr;
 
@@ -67,13 +68,13 @@ void Application::Run()
 
 		// displays fps information
 		float currTime = (float)Time::GetTime();
-		if (currTime - lastSecondTime >= 1.0)
+		if (currTime - lastSecondTime >= 1)
 		{
 			m_FPS = m_FPS_Accumulator;
 			lastSecondTime = currTime;
 			m_FPS_Accumulator = 0;
 			
-			std::cout << "Application is running at:" << m_FPS << " FPS\n";
+			//std::cout << "Application is running at:" << m_FPS << " FPS\n";
 			StatsDirty = true;
 		}
 
@@ -201,6 +202,35 @@ void Application::PushOverlay(Layer* layer)
 void Application::Close()
 {
 	m_Running = false;
+}
+
+void Application::OnImGuiRender()
+{
+	const char* accelerationModes[] = { "Naive", "Spatial", "SpatialCombined", "GPU" };
+	int currentMode = static_cast<int>(m_Specification.accelerationMode);
+
+	if (ImGui::Combo("Acceleration Mode", &currentMode, accelerationModes, IM_ARRAYSIZE(accelerationModes)))
+	{
+		m_Specification.accelerationMode = static_cast<ApplicationSpecification::AccelerationMode>(currentMode);
+	}
+
+	int numThreads = static_cast<int>(m_Specification.numThreads);
+	if (ImGui::InputInt("Number of Threads", &numThreads))
+	{
+		if (numThreads < 1)
+			numThreads = 1;
+		m_Specification.numThreads = static_cast<uint32_t>(numThreads);
+	}
+
+	// Display the first command line argument via GetArgs().
+	ImGui::Text("Command Line Args: %s", Application::GetArgs());
+
+	// Display the FPS (frames per second).
+	ImGui::Text("FPS: %u", Application::GetFPS());
+
+	// Display the Application Update and Render times.
+	ImGui::Text("Update Time: %.3f ms", ApplicationUpdateTime);
+	ImGui::Text("Render Time: %.3f ms", ApplicationRenderTime);
 }
 
 void Application::CreateModule(Module::RegistryMap::const_iterator it)

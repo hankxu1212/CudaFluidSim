@@ -21,6 +21,8 @@
     <ClCompile Include="library\imgui\imgui_draw.cpp" />
     <ClCompile Include="library\imgui\imgui_tables.cpp" />
     <ClCompile Include="library\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="library\imgui\implot.cpp" />
+    <ClCompile Include="library\imgui\implot_items.cpp" />
     <ClCompile Include="library\imgui\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="src\core\Texture.cpp" />
     <ClCompile Include="src\math\color\Color.cpp" />
@@ -344,6 +346,8 @@
     <ClInclude Include="library\imgui\imconfig.h" />
     <ClInclude Include="library\imgui\imgui.h" />
     <ClInclude Include="library\imgui\imgui_internal.h" />
+    <ClInclude Include="library\imgui\implot.h" />
+    <ClInclude Include="library\imgui\implot_internal.h" />
     <ClInclude Include="library\imgui\imstb_rectpack.h" />
     <ClInclude Include="library\imgui\imstb_textedit.h" />
     <ClInclude Include="library\imgui\imstb_truetype.h" />
@@ -383,6 +387,7 @@
     <ClInclude Include="src\math\Math.hpp" />
     <ClInclude Include="src\resources\Files.hpp" />
     <ClInclude Include="src\resources\Module.hpp" />
+    <ClInclude Include="src\SolverConfiguration.hpp" />
     <ClInclude Include="src\SpatialHashTable.hpp" />
     <ClInclude Include="src\utils\Bitmap.hpp" />
     <ClInclude Include="src\utils\Logger.hpp" />

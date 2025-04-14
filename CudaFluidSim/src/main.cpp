@@ -61,10 +61,10 @@ static Application* CreateApplication(ApplicationCommandLineArgs args)
 {
     ApplicationSpecification spec{
         .Name = "Cuda Fluid Simulator",
-        .width = 800,
-        .height = 800,
+        .width = 1000,
+        .height = 1000,
         .CommandLineArgs = args,
-        .accelerationMode = ApplicationSpecification::AccelerationMode::Spatial, // you should modify this to change parallel mode
+        .accelerationMode = ApplicationSpecification::AccelerationMode::SpatialCombined, // you should modify this to change parallel mode
         .numThreads = 32,
         .headless = false // you should make this true and compile again to run in headless mode
     };

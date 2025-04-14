@@ -20,5 +20,8 @@ public:
 	void RenderUIBegin();
 
 	void RenderUIFinalize();
+
+private:
+	void SetTheme();
 };
 
