@@ -542,8 +542,12 @@
     <None Include="library\glm\glm\gtx\vector_angle.inl" />
     <None Include="library\glm\glm\gtx\vector_query.inl" />
     <None Include="library\glm\glm\gtx\wrap.inl" />
+    <None Include="src\shaders\blur.frag" />
+    <None Include="src\shaders\blur.vert" />
     <None Include="src\shaders\particle.frag" />
     <None Include="src\shaders\particle.vert" />
+    <None Include="src\shaders\particle_splat.frag" />
+    <None Include="src\shaders\particle_splat.vert" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="library\glfw-3.4.bin.WIN64\lib-vc2022\glfw3.lib" />

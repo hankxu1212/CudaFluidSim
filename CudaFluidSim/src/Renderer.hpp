@@ -21,10 +21,12 @@ public:
 	void OnImGuiRender();
 
 	bool Disabled = false;
+	bool UseBlur = false;
 
 private:
 	Shader shader;
-	unsigned int VAO;
+	Shader shader_splat;
+	unsigned int VAO, VBO;
 };
 
 
