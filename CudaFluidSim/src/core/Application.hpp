@@ -34,7 +34,7 @@ struct ApplicationSpecification
 
 	enum AccelerationMode
 	{
-		Naive, Spatial, GPU
+		Naive, Spatial, SpatialCombinedSIMD, SpatialSOA, GPU
 	};
 
 	// parallel mode

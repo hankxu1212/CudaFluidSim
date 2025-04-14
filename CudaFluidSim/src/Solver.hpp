@@ -78,6 +78,10 @@ private:
 
 	void SpatialParallelComputeForces();
 
+	void SpatialParallelComputeCombined();
+
+	void SpatialParallelComputeTasks();
+
 	void ParallelCalculateHashes();
 
 	void SpatialParallelUpdate();

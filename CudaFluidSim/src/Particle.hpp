@@ -2,7 +2,7 @@
 
 #include "glm/glm.hpp"
 
-struct Particle
+struct alignas(64) Particle
 {
 	Particle() :
 		position(0, 0), velocity(0.f, 0.f), force(0.f, 0.f), density(0), pressure(0.f), id(0), debugColor(0) {}
@@ -18,4 +18,8 @@ struct Particle
 
 	uint16_t id; // spawning id [0, NUM_PARTICLES]
 	float debugColor; // debug color index
+
+	float __padding[5]; // for each particle to fit on same cache line
 };
+
+static_assert(sizeof(Particle) == 64);

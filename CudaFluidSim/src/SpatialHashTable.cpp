@@ -54,12 +54,14 @@ std::vector<uint32_t> SpatialHashTable::Create(const Particle* particles, uint32
 
 void SpatialHashTable::CreateNonAlloc(const Particle* particles, uint32_t count, uint32_t* out)
 {
-    memset(out, NO_PARTICLE, TABLE_SIZE * sizeof(uint32_t));
+    assert(count < TABLE_SIZE);
+    std::fill(out, out + TABLE_SIZE, NO_PARTICLE);
 
     uint32_t prevHash = NO_PARTICLE;
-    for (size_t i = 0; i < count; ++i)
+    for (uint32_t i = 0; i < count; ++i)
     {
         uint32_t currentHash = particles[i].hash;
+        assert(currentHash < TABLE_SIZE);
         if (currentHash != prevHash) {
             out[currentHash] = i;
             prevHash = currentHash;

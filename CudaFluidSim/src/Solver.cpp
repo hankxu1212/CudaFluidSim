@@ -14,7 +14,7 @@
 
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
 
-//#define PROFILE_TIMES
+#define PROFILE_TIMES
 //#define PROFILE_FRAME_TIME
 
 Solver* Solver::s_Instance = nullptr;
@@ -42,6 +42,8 @@ Solver::Solver()
 		break;
 
 	case ApplicationSpecification::Spatial:
+	case ApplicationSpecification::SpatialCombinedSIMD:
+	case ApplicationSpecification::SpatialSOA:
 		std::cout << "Acceleration method: Spatial Hashing\n";
 		SpatialParallelInitSPH();
 		break;
@@ -73,6 +75,8 @@ void Solver::OnUpdate()
 		break;
 
 	case ApplicationSpecification::Spatial:
+	case ApplicationSpecification::SpatialCombinedSIMD:
+	case ApplicationSpecification::SpatialSOA:
 		SpatialParallelUpdate();
 		break;
 
@@ -352,6 +356,210 @@ void Solver::SpatialParallelComputeForces()
 	}
 }
 
+void Solver::SpatialParallelComputeCombined()
+{
+	#pragma omp parallel
+	{
+		#pragma omp for schedule(dynamic, 32)
+		for (int i = 0; i < NUM_PARTICLES; ++i)
+		{
+			float pDensity = 0;
+			Particle& pi = m_Particles[i];
+			const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
+
+			#pragma omp simd reduction(+:pDensity)
+			for (int xy = 0; xy < 9; xy++) {
+				int x = xy / 3 - 1;  // Converts 0-8 to -1 to +1
+				int y = xy % 3 - 1;
+				const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+				if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
+
+				const uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+				uint32_t idx = m_ParticleHashTable[adjacentCellHash];
+				if (idx == SpatialHashTable::NO_PARTICLE) continue;
+
+				while (idx < NUM_PARTICLES) 
+				{
+					if (m_Particles[idx].hash != adjacentCellHash) break;
+					if (idx != i) 
+					{
+						const float dist2 = glm::length2(m_Particles[idx].position - pi.position);
+						if (dist2 < HSQ) {
+							pDensity += MASS * POLY6 * pow(HSQ - dist2, 3.f);
+						}
+					}
+					idx++;
+				}
+			}
+
+			// Include self density (as itself isn't included in neighbour)
+			pi.density = pDensity + MASS * POLY6 * pow(HSQ, 3.f);
+			pi.pressure = GAS_CONST * (pi.density - REST_DENS);;
+		}
+
+		#pragma omp for schedule(dynamic, 32) nowait
+		for (int i = 0; i < NUM_PARTICLES; ++i)
+		{
+			Particle& pi = m_Particles[i];
+			const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
+
+			float fpress_x = 0.f, fpress_y = 0.f;
+			float fvisc_x = 0.f, fvisc_y = 0.f;
+
+			#pragma omp simd reduction(+:fpress_x,fpress_y,fvisc_x,fvisc_y)
+			for (int xy = 0; xy < 9; xy++) {
+				int x = xy / 3 - 1;  // Converts 0-8 to -1 to +1
+				int y = xy % 3 - 1;
+				const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+				if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
+
+				const uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+				uint32_t idx = m_ParticleHashTable[adjacentCellHash];
+				if (idx == SpatialHashTable::NO_PARTICLE) continue;
+
+				while (idx < NUM_PARTICLES) {
+					if (m_Particles[idx].hash != adjacentCellHash) break;
+					if (idx != i) {
+						const Particle& pj = m_Particles[idx];
+						float dist2 = glm::length2(pj.position - pi.position);
+						if (dist2 < HSQ) {
+							float dist = sqrt(dist2);
+							glm::vec2 dir = (dist > 0) ? (pj.position - pi.position) / dist : glm::vec2(0.f);
+
+							// Pressure force
+							float magnitude = -MASS * (pi.pressure + pj.pressure) / (2.0f * pj.density) * SPIKY_GRAD * pow(H - dist, 3);
+
+							auto fpress = magnitude * dir;
+							fpress_x += fpress.x;
+							fpress_y += fpress.y;
+
+							auto fvisc = VISC * MASS * (pj.velocity - pi.velocity) / pj.density * VISC_LAP * (H - dist);
+							fvisc_x += fvisc.x;
+							fvisc_y += fvisc.y;
+						}
+					}
+					idx++;
+				}
+			}
+
+			glm::vec2 fgrav = G * MASS / pi.density;
+			pi.force = glm::vec2(fpress_x, fpress_y) + glm::vec2(fvisc_x, fvisc_y) + fgrav;
+		}
+	}
+}
+
+void Solver::SpatialParallelComputeTasks()
+{
+	/*
+	const int num_particles = m_Particles.size();
+	const int task_size = 16; // Particles per task (adjust based on your system)
+
+	// Density and pressure computation
+#pragma omp parallel
+#pragma omp single nowait
+	{
+		for (int i = 0; i < num_particles; i += task_size) {
+			const int start = i;
+			const int end = std::min(i + task_size, num_particles);
+
+#pragma omp task firstprivate(start, end) 
+			{
+				for (int p = start; p < end; p++) {
+					float pDensity = 0;
+					Particle& pi = m_Particles[p];
+					const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
+
+					for (int x = -1; x <= 1; x++) {
+						for (int y = -1; y <= 1; y++) {
+							const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+							if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
+
+							const uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+							uint32_t idx = m_ParticleHashTable[adjacentCellHash];
+							if (idx == SpatialHashTable::NO_PARTICLE) continue;
+
+							while (idx < num_particles) {
+								if (m_Particles[idx].hash != adjacentCellHash) break;
+								if (idx != p) {
+									const float dist2 = glm::length2(m_Particles[idx].position - pi.position);
+									if (dist2 < HSQ) {
+										pDensity += MASS * POLY6 * pow(HSQ - dist2, 3.f);
+									}
+								}
+								idx++;
+							}
+						}
+					}
+
+					pi.density = pDensity + MASS * POLY6 * pow(HSQ, 3.f);
+					pi.pressure = std::max(GAS_CONST * (pi.density - REST_DENS), 0.0f);
+				}
+			}
+		}
+	}
+
+	// Force computation
+#pragma omp parallel
+#pragma omp single nowait
+	{
+		for (int i = 0; i < num_particles; i += task_size) {
+			const int start = i;
+			const int end = std::min(i + task_size, num_particles);
+
+#pragma omp task firstprivate(start, end)
+			{
+				for (int p = start; p < end; p++) {
+					Particle& pi = m_Particles[p];
+					const glm::ivec2 cell = SpatialHashTable::GetCell(pi, CELL_SIZE);
+
+					glm::vec2 fpress(0.f, 0.f);
+					glm::vec2 fvisc(0.f, 0.f);
+
+					for (int x = -1; x <= 1; x++) {
+						for (int y = -1; y <= 1; y++) {
+							const glm::ivec2 adjacentCell = cell + glm::ivec2(x, y);
+							if (adjacentCell.x < 0 || adjacentCell.y < 0) continue;
+
+							const uint32_t adjacentCellHash = SpatialHashTable::GetHash(adjacentCell);
+							uint32_t idx = m_ParticleHashTable[adjacentCellHash];
+							if (idx == SpatialHashTable::NO_PARTICLE) continue;
+
+							while (idx < num_particles) {
+								if (m_Particles[idx].hash != adjacentCellHash) break;
+								if (idx != p) {
+									const Particle& pj = m_Particles[idx];
+									float dist2 = glm::length2(pj.position - pi.position);
+									if (dist2 < HSQ) {
+										float dist = sqrt(dist2);
+										glm::vec2 dir = (dist > 0) ?
+											(pj.position - pi.position) / dist : glm::vec2(0.f);
+
+										// Pressure force
+										float magnitude = -MASS * (pi.pressure + pj.pressure) /
+											(2.0f * pj.density) * SPIKY_GRAD * pow(H - dist, 3);
+										fpress += magnitude * dir;
+
+										// Viscosity force
+										fvisc += VISC * MASS * (pj.velocity - pi.velocity) /
+											pj.density * VISC_LAP * (H - dist);
+									}
+								}
+								idx++;
+							}
+						}
+					}
+
+					glm::vec2 fgrav = G * MASS / pi.density;
+					pi.force = fpress + fvisc + fgrav;
+				}
+			}
+		}
+	}
+
+#pragma omp taskwait
+*/
+}
+
 void Solver::ParallelCalculateHashes()
 {
 	#pragma omp parallel for
@@ -391,67 +599,24 @@ void Solver::SpatialParallelUpdate()
 	std::cout << "Creating HashTable. " << timer.GetElapsed(true) << " ms\n";
 #endif
 
-#pragma region Debug
+	switch (Application::GetSpecification().accelerationMode)
+	{
+	case ApplicationSpecification::Spatial:
+		SpatialParallelComputeDensityPressure();
+		SpatialParallelComputeForces();
+		break;
 
-	// the following section debugs the spatial hash table
-	//std::vector<uint32_t> availableHashes;
-	//for (auto hash : m_ParticleHashTable)
-	//{
-	//	if (hash != SpatialHashTable::NO_PARTICLE)
-	//		availableHashes.emplace_back(hash);
-	//}
+	case ApplicationSpecification::SpatialCombinedSIMD:
+		SpatialParallelComputeCombined();
+		break;
 
-	//std::cout << "Total hashes " << availableHashes.size() << std::endl;
-
-	// The following section tries to find a particle given a spawn ID (e.g. targetRawPid = 0)
-	//constexpr int targetRawPid = 0;
-
-	//int pid = -1;
-	//for (int i = 0; i < m_Particles.size(); ++i)
-	//{
-	//	if (m_Particles[i].id == targetRawPid) {
-	//		pid = i;
-	//		break;
-	//	}
-	//}
-
-	//assert(pid != -1);
-
-	// color everything black
-	//#pragma omp parallel for
-	//for (int i = 0; i < m_Particles.size(); ++i)
-	//{
-	//	m_Particles[i].debugColor = 0;
-	//}
-
-	// UNCOMMENT BELOW TO DEBUG A PARTICULAR PARTICLE
-	//std::vector<uint32_t> nearbyParticleIds = FindNearbyParticles(pid);
-	//std::cout << nearbyParticleIds.size() << "\n";
-	//#pragma omp parallel for
-	//for (int i = 0; i < nearbyParticleIds.size(); ++i)
-	//{
-	//	m_Particles[nearbyParticleIds[i]].debugColor = 0.5f;
-	//}
-	//m_Particles[pid].debugColor = 1;
-
-	// UNCOMMENT BELOW TO DEBUG SPATIAL BINS BY COLOR
-	//#pragma omp parallel for
-	//for (int i = 0; i < m_Particles.size(); ++i)
-	//{
-	//	m_Particles[i].debugColor = (float)SpatialHashTable::GetHashFromParticle(m_Particles[i], CELL_SIZE) / SpatialHashTable::TABLE_SIZE;
-	//}
-#pragma endregion
-
-	SpatialParallelComputeDensityPressure();
+	case ApplicationSpecification::SpatialSOA:
+		SpatialParallelComputeTasks();
+		break;
+	}
 
 #ifdef PROFILE_TIMES
-	std::cout << "Compute Density Pressure. " << timer.GetElapsed(true) << " ms\n";
-#endif
-
-	SpatialParallelComputeForces();
-
-#ifdef PROFILE_TIMES
-	std::cout << "Compute Forces. " << timer.GetElapsed(true) << " ms\n";
+	std::cout << "Compute Density Pressure and Forces. " << timer.GetElapsed(true) << " ms\n";
 #endif
 
 	Integrate(DT);
