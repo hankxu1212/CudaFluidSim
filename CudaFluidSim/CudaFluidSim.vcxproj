@@ -32,6 +32,7 @@
     <ClCompile Include="src\math\vector\Vec3.cpp" />
     <ClCompile Include="src\math\vector\Vec4.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
+    <ClCompile Include="src\renderer\MetaballRenderer.hpp" />
     <ClCompile Include="src\resources\ResourceManager.cpp" />
     <ClCompile Include="src\core\Shader.cpp" />
     <ClCompile Include="src\Solver.cpp" />
@@ -543,11 +544,12 @@
     <None Include="library\glm\glm\gtx\vector_query.inl" />
     <None Include="library\glm\glm\gtx\wrap.inl" />
     <None Include="src\shaders\blur.frag" />
-    <None Include="src\shaders\blur.vert" />
+    <None Include="src\shaders\metaball.frag" />
     <None Include="src\shaders\particle.frag" />
     <None Include="src\shaders\particle.vert" />
     <None Include="src\shaders\particle_splat.frag" />
     <None Include="src\shaders\particle_splat.vert" />
+    <None Include="src\shaders\quad.vert" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="library\glfw-3.4.bin.WIN64\lib-vc2022\glfw3.lib" />

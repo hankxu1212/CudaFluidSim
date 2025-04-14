@@ -12,6 +12,8 @@
 #include "UIRenderer.h"
 #include "imgui.h"
 
+#include <omp.h>
+
 //--------------------------------------------------------------
 // Post-Processing: Full-Screen Quad with Blur
 //--------------------------------------------------------------
@@ -27,7 +29,7 @@ public:
     void Initialize() {
 
         const std::string pathRelativeToExecutable = "../../CudaFluidSim/src/";
-        std::string vertPath = Files::Path(pathRelativeToExecutable + "shaders/blur.vert");
+        std::string vertPath = Files::Path(pathRelativeToExecutable + "shaders/quad.vert");
         std::string fragPath = Files::Path(pathRelativeToExecutable + "shaders/blur.frag");
         blurShader = ResourceManager::LoadShader(vertPath.c_str(), fragPath.c_str(), nullptr, "blur");
 
@@ -127,7 +129,6 @@ private:
     }
 };
 
-
 Renderer::Renderer()
 {
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -136,11 +137,6 @@ Renderer::Renderer()
     }
 
 	const std::string pathRelativeToExecutable = "../../CudaFluidSim/src/";
-
-	//load shaders
-	//std::string vertPath = Files::Path(pathRelativeToExecutable + "shaders/particle.vert");
-	//std::string fragPath = Files::Path(pathRelativeToExecutable + "shaders/particle.frag");
-    //shader = ResourceManager::LoadShader(vertPath.c_str(), fragPath.c_str(), nullptr, "particle");
 
     std::string vertPath_splat = Files::Path(pathRelativeToExecutable + "shaders/particle_splat.vert");
     std::string fragPath_splat = Files::Path(pathRelativeToExecutable + "shaders/particle_splat.frag");
@@ -171,6 +167,8 @@ Renderer::Renderer()
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    metaballRenderer = std::make_unique<MetaballRenderer>(Window::Get()->m_Data.Width, Window::Get()->m_Data.Height);
 }
 
 Renderer::~Renderer()
@@ -192,6 +190,9 @@ Renderer::~Renderer()
 // update is called in Render stage
 void Renderer::Update()
 {
+    glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
     if (Disabled)
     {
         UIRenderer::Get()->RenderUIFinalize();
@@ -211,38 +212,41 @@ void Renderer::Update()
     if (UseBlur)
         fbo.Bind();
 
-    glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    // do particle rendering here
     {
-
         const auto& particles = Solver::Get()->m_Particles;
 
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, NUM_PARTICLES * sizeof(Particle), particles.data());
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        if (UseMetaballRendering)
+            metaballRenderer->Render(particles.data(), NUM_PARTICLES);
+        else 
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, NUM_PARTICLES * sizeof(Particle), particles.data());
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-        shader_splat.Use();
+            shader_splat.Use();
 
-        // Optionally, send any additional uniform such as splat size.
-        // For example: shader.SetFloat("pointSize", someValue);
+            // Optionally, send any additional uniform such as splat size.
+            // For example: shader.SetFloat("pointSize", someValue);
 
-        // Bind the VAO containing the particle positions.
-        glBindVertexArray(VAO);
+            // Bind the VAO containing the particle positions.
+            glBindVertexArray(VAO);
 
-        // Enable using programmable point sizes if needed.
-        glEnable(GL_PROGRAM_POINT_SIZE);
+            // Enable using programmable point sizes if needed.
+            glEnable(GL_PROGRAM_POINT_SIZE);
 
-        // Draw all particles as points.
-        glDrawArrays(GL_POINTS, 0, NUM_PARTICLES);
+            // Draw all particles as points.
+            glDrawArrays(GL_POINTS, 0, NUM_PARTICLES);
 
-        glBindVertexArray(0);
+            glBindVertexArray(0);
+        }
     }
 
+    // Render the blurred texture to the screen.
     if (UseBlur) 
     {
         fbo.Unbind();
-
-        // 2. Render the blurred texture to the screen.
+        
         glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         postProcessor.Render(fbo.GetTexture());
@@ -263,6 +267,14 @@ void Renderer::OnImGuiRender()
     else
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Renderer: Enabled");
 
-    if (ImGui::Button(UseBlur ? "Enable Blur" : "Disable Blur"))
+    if (ImGui::Button(UseBlur ? "Disable Blur" : "Use Blur"))
         UseBlur = !UseBlur;
+
+    if (ImGui::Button(UseMetaballRendering ? "Disable Metaball Rendering" : "Use Metaball Rendering"))
+        UseMetaballRendering = !UseMetaballRendering;
+
+    if (UseMetaballRendering)
+    {
+        ImGui::DragFloat("Metaball Threshold", &metaballRenderer->MetaballThreshold, 0.01f, 0.0f, 10.0f);
+    }
 }

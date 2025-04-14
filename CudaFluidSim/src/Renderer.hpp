@@ -2,6 +2,7 @@
 
 #include "window/Window.hpp"
 #include "resources/ResourceManager.h"
+#include "renderer/MetaballRenderer.hpp"
 
 class Renderer : public Module::Registrar<Renderer>
 {
@@ -22,11 +23,13 @@ public:
 
 	bool Disabled = false;
 	bool UseBlur = false;
+	bool UseMetaballRendering = false;
 
 private:
-	Shader shader;
 	Shader shader_splat;
 	unsigned int VAO, VBO;
+
+	std::unique_ptr<MetaballRenderer> metaballRenderer;
 };
 
 
