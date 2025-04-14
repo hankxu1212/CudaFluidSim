@@ -39,6 +39,14 @@ struct ApplicationSpecification
 
 	// parallel mode
 	AccelerationMode accelerationMode = Naive;
+
+	enum IntegrationMode
+	{
+		Euler, LeapFrog
+	};
+
+	IntegrationMode integrationMode = Euler;
+
 	uint32_t numThreads = 8;
 
 	bool headless = false; // solve without a renderer

@@ -8,7 +8,7 @@ constexpr float REST_DENS = 300.f;  // rest density
 constexpr float GAS_CONST = 2000.f; // const for equation of state
 constexpr float MASS = 2.5f;		   // assume all particles have the same mass
 constexpr float VISC = 1500.f;	   // viscosity constant
-constexpr float DT = 0.0005f;       // simulation delta time
+constexpr float DT = 0.0007f;       // simulation delta time
 
 constexpr int NUM_PARTICLES = 40000;
 

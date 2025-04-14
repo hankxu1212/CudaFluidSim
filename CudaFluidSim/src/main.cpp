@@ -65,6 +65,7 @@ static Application* CreateApplication(ApplicationCommandLineArgs args)
         .height = 1000,
         .CommandLineArgs = args,
         .accelerationMode = ApplicationSpecification::AccelerationMode::SpatialCombined, // you should modify this to change parallel mode
+        .integrationMode = ApplicationSpecification::IntegrationMode::LeapFrog,
         .numThreads = 32,
         .headless = false // you should make this true and compile again to run in headless mode
     };

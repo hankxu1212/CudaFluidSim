@@ -41,6 +41,10 @@ private:
 	// forward euler integration with fixed delta time
 	void Integrate(float dt);
 
+	void LeapfrogDrift(float dt);
+
+	void LeapfrogKick(float dt);
+
 #pragma region Basic OpenMP
 
 	void InitSPH();

@@ -214,6 +214,14 @@ void Application::OnImGuiRender()
 		m_Specification.accelerationMode = static_cast<ApplicationSpecification::AccelerationMode>(currentMode);
 	}
 
+	const char* integrationModes[] = { "Euler", "LeapFrog" };
+	int intMode = static_cast<int>(m_Specification.integrationMode);
+
+	if (ImGui::Combo("Integration Mode", &intMode, integrationModes, IM_ARRAYSIZE(integrationModes)))
+	{
+		m_Specification.integrationMode = static_cast<ApplicationSpecification::IntegrationMode>(intMode);
+	}
+
 	int numThreads = static_cast<int>(m_Specification.numThreads);
 	if (ImGui::InputInt("Number of Threads", &numThreads))
 	{

@@ -124,8 +124,11 @@ void Solver::OnRestart()
 // Inside your Solver class implementation
 void Solver::OnImGuiRender()
 {
+	if (Restart)
+		return;
+
 	ImGui::BulletText("Number of Particles: %d", NUM_PARTICLES);
-	ImGui::BulletText("Smoothing Kernel: %.2f", H);
+	ImGui::BulletText("Smoothing Kernel: %d", H);
 
 	if (Paused)
 		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Solver: Paused");
@@ -158,30 +161,83 @@ void Solver::InitSPH()
 
 void Solver::Integrate(float dt)
 {
-	constexpr float inv_damping = 1.0f - BOUND_DAMPING;
-	const float window_width = WINDOW_WIDTH - EPS;
-	const float window_height = WINDOW_HEIGHT - EPS;
-
-	#pragma omp parallel for schedule(static, 64)
-	for (int i = 0; i < m_Particles.size(); ++i) {
+	#pragma omp parallel for
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
 		auto& p = m_Particles[i];
-		const float inv_rho = 1.0f / p.density;
 
-		// Vectorized integration
-		p.velocity += dt * p.force * inv_rho;
+		// forward Euler integration
+		p.velocity += dt * p.force / p.density;
 		p.position += dt * p.velocity;
 
-		// Branchless boundary handling
-		const bool x_min = p.position[0] < EPS;
-		const bool x_max = p.position[0] > window_width;
-		const bool y_min = p.position[1] < EPS;
-		const bool y_max = p.position[1] > window_height;
+		// enforce boundary conditions
+		if (p.position[0] - EPS < 0.f)
+		{
+			p.velocity[0] *= BOUND_DAMPING;
+			p.position[0] = EPS;
+		}
+		if (p.position[0] + EPS > WINDOW_WIDTH)
+		{
+			p.velocity[0] *= BOUND_DAMPING;
+			p.position[0] = WINDOW_WIDTH - EPS;
+		}
+		if (p.position[1] - EPS < 0.f)
+		{
+			p.velocity[1] *= BOUND_DAMPING;
+			p.position[1] = EPS;
+		}
+		if (p.position[1] + EPS > WINDOW_HEIGHT)
+		{
+			p.velocity[1] *= BOUND_DAMPING;
+			p.position[1] = WINDOW_HEIGHT - EPS;
+		}
+	}
+}
 
-		p.velocity[0] *= x_min || x_max ? inv_damping : 1.0f;
-		p.velocity[1] *= y_min || y_max ? inv_damping : 1.0f;
+void Solver::LeapfrogKick(float dt)
+{
+	#pragma omp parallel for
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
+		Particle& p = m_Particles[i];
+		// Update half-step velocity with the new force.
+		p.velocityHalf += dt * (p.force / p.density);
 
-		p.position[0] = x_min ? EPS : (x_max ? window_width : p.position[0]);
-		p.position[1] = y_min ? EPS : (y_max ? window_height : p.position[1]);
+		// Optionally update full velocity for diagnostics or output:
+		// (This recovers the full-step velocity at t + dt.)
+		p.velocity = p.velocityHalf - 0.5f * dt * (p.force / p.density);
+	}
+}
+
+void Solver::LeapfrogDrift(float dt)
+{
+	#pragma omp parallel for
+	for (int i = 0; i < m_Particles.size(); ++i)
+	{
+		Particle& p = m_Particles[i];
+		p.position += dt * p.velocityHalf;
+
+		// Enforce boundary conditions after drift:
+		if (p.position.x - EPS < 0.f)
+		{
+			p.velocityHalf.x *= BOUND_DAMPING;
+			p.position.x = EPS;
+		}
+		if (p.position.x + EPS > WINDOW_WIDTH)
+		{
+			p.velocityHalf.x *= BOUND_DAMPING;
+			p.position.x = WINDOW_WIDTH - EPS;
+		}
+		if (p.position.y - EPS < 0.f)
+		{
+			p.velocityHalf.y *= BOUND_DAMPING;
+			p.position.y = EPS;
+		}
+		if (p.position.y + EPS > WINDOW_HEIGHT)
+		{
+			p.velocityHalf.y *= BOUND_DAMPING;
+			p.position.y = WINDOW_HEIGHT - EPS;
+		}
 	}
 }
 
@@ -525,6 +581,15 @@ void parallel_merge_sort(RandomAccessIterator begin, RandomAccessIterator end, C
 
 void Solver::SpatialParallelUpdate()
 {
+	switch (Application::GetSpecification().integrationMode)
+	{
+	case ApplicationSpecification::Euler:
+		break;
+	case ApplicationSpecification::LeapFrog:
+		LeapfrogDrift(DT);
+		break;
+	}
+
 #ifdef PROFILE_TIMES
 	Timer timer;
 #endif
@@ -573,7 +638,15 @@ void Solver::SpatialParallelUpdate()
 	std::cout << "Compute Density Pressure and Forces. " << timer.GetElapsed(true) << " ms\n";
 #endif
 
-	Integrate(DT);
+	switch (Application::GetSpecification().integrationMode)
+	{
+	case ApplicationSpecification::Euler:
+		Integrate(DT);
+		break;
+	case ApplicationSpecification::LeapFrog:
+		LeapfrogKick(DT);
+		break;
+	}
 
 #ifdef PROFILE_TIMES
 	std::cout << "Integrate. " << timer.GetElapsed(true) << " ms\n";

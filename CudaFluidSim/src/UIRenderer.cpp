@@ -82,7 +82,7 @@ void UIRenderer::RenderUIBegin()
 }
 
 // Number of samples (averaged over 0.1 s windows) to hold for the graph.
-constexpr int SOLVER_FRAME_HISTORY_COUNT = 120;
+constexpr int SOLVER_FRAME_HISTORY_COUNT = 300;
 
 // Circular buffer that stores the averaged frame update times (in milliseconds).
 static float g_SolverFrameTimes[SOLVER_FRAME_HISTORY_COUNT] = { 0.0f };
@@ -174,8 +174,15 @@ void UIRenderer::RenderUIFinalize()
 {
     ImGui::Begin("Controls");
     {
+        auto accelMode = Application::GetSpecification().accelerationMode;
+        auto intMode = Application::GetSpecification().integrationMode;
         ImGui::SeparatorText("Application");
         Application::Get().OnImGuiRender();
+        if (accelMode != Application::GetSpecification().accelerationMode 
+            || intMode != Application::GetSpecification().integrationMode)
+        {
+            Solver::Get()->Restart = true;
+        }
         ImGui::Separator();
         
         ImGui::SeparatorText("Simulation");
