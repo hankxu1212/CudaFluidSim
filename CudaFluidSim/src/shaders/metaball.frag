@@ -71,8 +71,5 @@ void main(){
         fluidColor = mix(colorMid, colorHigh, (t - 0.5) * 2.0);
     }
     
-    // Optionally, add a slight sine modulation for extra visual texture.
-    fluidColor *= (0.9 + 0.1 * sin(field * 10.0));
-    
     FragColor = vec4(fluidColor, 1.0);
 }
