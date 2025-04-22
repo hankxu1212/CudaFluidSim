@@ -1,4 +1,5 @@
 #include "Solver.hpp"
+#include "cudaSolver.cuh"
 #include "math/Math.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -15,8 +16,6 @@
 
 #define WINDOW_HEIGHT Window::Get()->m_Data.Height
 #define WINDOW_WIDTH Window::Get()->m_Data.Width
-
-const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
 
 #include "cuda_kernel.cuh"
 
@@ -80,9 +79,9 @@ void Solver::OnUpdate()
 
 	case ApplicationSpecification::GPU:
 		// TODO: run your kernel code here
-		KernelComputeDensityPressure();
-		KernelComputeForces();
-		KernelIntegrate(DT);
+		CUDAComputeDensityPressure();
+		CUDAComputeForces();
+		CUDAIntegrate(DT);
 		break;
 	}
 
@@ -134,7 +133,7 @@ void Solver::OnRestart()
 
 	case ApplicationSpecification::GPU:
 		std::cout << "Acceleration method: GPU\n";
-		KernelInitSPH();
+		CUDAInitSPH();
 		break;
 	}
 }
@@ -712,18 +711,22 @@ std::vector<uint32_t> Solver::FindNearbyParticles(int sortedPid)
 	return particlesIndices;
 }
 
-void Solver::KernelInitSPH()
+void Solver::CUDAInitSPH()
 {
+	CUDAInitSPH();
 }
 
-void Solver::KernelComputeDensityPressure()
+void Solver::CUDAComputeDensityPressure()
 {
+	DispatchComputeDensityPressure();
 }
 
-void Solver::KernelComputeForces()
+void Solver::CUDAComputeForces()
 {
+	DispatchComputeForces();
 }
 
-void Solver::KernelIntegrate(float dt)
+void Solver::CUDAIntegrate(float dt)
 {
+	DispatchIntegrate(dt);
 }

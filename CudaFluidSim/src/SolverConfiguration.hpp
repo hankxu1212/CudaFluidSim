@@ -10,6 +10,8 @@ constexpr float MASS = 2.5f;		   // assume all particles have the same mass
 constexpr float VISC = 1500.f;	   // viscosity constant
 constexpr float DT = 0.0007f;       // simulation delta time
 
+const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
+
 constexpr int NUM_PARTICLES = 40000;
 
 constexpr float EPS = H; // boundary epsilon

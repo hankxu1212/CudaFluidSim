@@ -79,13 +79,13 @@ private:
 	// TODO: add your CUDA variables/kernel functions here
 	// these are just placeholder empty functions for now
 
-	void KernelInitSPH();
+	void CUDAInitSPH();
 
-	void KernelComputeDensityPressure();
+	void CUDAComputeDensityPressure();
 
-	void KernelComputeForces();
+	void CUDAComputeForces();
 
-	void KernelIntegrate(float dt);
+	void CUDAIntegrate(float dt);
 
 #pragma endregion
 };

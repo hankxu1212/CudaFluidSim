@@ -364,6 +364,7 @@
     <ClInclude Include="library\libmorton\include\morton_LUT_generators.h" />
     <ClInclude Include="src\core\Texture.h" />
     <ClInclude Include="src\cuda_kernel.cuh" />
+    <ClInclude Include="src\cudaSolver.cuh" />
     <ClInclude Include="src\math\color\Color.hpp" />
     <ClInclude Include="src\math\color\Color3.hpp" />
     <ClInclude Include="src\math\color\Color4.hpp" />
@@ -559,6 +560,7 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="src\cuda_kernel.cu" />
+    <CudaCompile Include="src\cudaSolver.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D0029C1F-FFA8-4E79-83EB-8FF5E53B2AA6}</ProjectGuid>
