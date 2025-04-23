@@ -1,5 +1,7 @@
 #include "Solver.hpp"
+
 #include "cudaSolver.cuh"
+
 #include "math/Math.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -17,8 +19,6 @@
 #define WINDOW_HEIGHT Window::Get()->m_Data.Height
 #define WINDOW_WIDTH Window::Get()->m_Data.Width
 
-#include "cuda_kernel.cuh"
-
 //#define PROFILE_TIMES
 
 Solver* Solver::s_Instance = nullptr;
@@ -28,26 +28,11 @@ Solver::Solver()
 	s_Instance = this;
 
 	OnRestart();
-
-
-	// RUNS A EXAMPLE CUDA
-
-	// Initialize arrays A, B, and C.
-	double A[3], B[3], C[3];
-
-	// Populate arrays A and B.
-	A[0] = 5; A[1] = 8; A[2] = 3;
-	B[0] = 7; B[1] = 6; B[2] = 4;
-
-	// Sum array elements across ( C[0] = A[0] + B[0] ) into array C using CUDA.
-	kernel(A, B, C, 3);
-
-	// Print out result.
-	std::cout << "C = " << C[0] << ", " << C[1] << ", " << C[2] << std::endl;
 }
 
 Solver::~Solver()
 {
+	DeviceCleanup();
 }
 
 void Solver::OnUpdate()
@@ -78,10 +63,10 @@ void Solver::OnUpdate()
 		break;
 
 	case ApplicationSpecification::GPU:
-		// TODO: run your kernel code here
-		CUDAComputeDensityPressure();
-		CUDAComputeForces();
-		CUDAIntegrate(DT);
+		DispatchComputeDensityPressure();
+		DispatchComputeForces();
+		DispatchIntegrate(DT);
+		DeviceSync(m_Particles.data(), NUM_PARTICLES);
 		break;
 	}
 
@@ -133,7 +118,9 @@ void Solver::OnRestart()
 
 	case ApplicationSpecification::GPU:
 		std::cout << "Acceleration method: GPU\n";
-		CUDAInitSPH();
+		DeviceCleanup();
+		InitSPH();
+		DeviceInitSPH(m_Particles.data(), WINDOW_HEIGHT, WINDOW_WIDTH);
 		break;
 	}
 }
@@ -709,24 +696,4 @@ std::vector<uint32_t> Solver::FindNearbyParticles(int sortedPid)
 	}
 
 	return particlesIndices;
-}
-
-void Solver::CUDAInitSPH()
-{
-	CUDAInitSPH();
-}
-
-void Solver::CUDAComputeDensityPressure()
-{
-	DispatchComputeDensityPressure();
-}
-
-void Solver::CUDAComputeForces()
-{
-	DispatchComputeForces();
-}
-
-void Solver::CUDAIntegrate(float dt)
-{
-	DispatchIntegrate(dt);
 }

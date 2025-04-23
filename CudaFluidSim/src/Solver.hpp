@@ -73,20 +73,5 @@ private:
 	std::array<uint32_t, SpatialHashTable::TABLE_SIZE> m_ParticleHashTable;
 
 #pragma endregion
-
-#pragma region CUDA
-
-	// TODO: add your CUDA variables/kernel functions here
-	// these are just placeholder empty functions for now
-
-	void CUDAInitSPH();
-
-	void CUDAComputeDensityPressure();
-
-	void CUDAComputeForces();
-
-	void CUDAIntegrate(float dt);
-
-#pragma endregion
 };
 

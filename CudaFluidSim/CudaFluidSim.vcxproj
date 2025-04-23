@@ -363,7 +363,6 @@
     <ClInclude Include="library\libmorton\include\morton_common.h" />
     <ClInclude Include="library\libmorton\include\morton_LUT_generators.h" />
     <ClInclude Include="src\core\Texture.h" />
-    <ClInclude Include="src\cuda_kernel.cuh" />
     <ClInclude Include="src\cudaSolver.cuh" />
     <ClInclude Include="src\math\color\Color.hpp" />
     <ClInclude Include="src\math\color\Color3.hpp" />
@@ -559,7 +558,6 @@
     <Library Include="library\glfw-3.4.bin.WIN64\lib-vc2022\glfw3_mt.lib" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="src\cuda_kernel.cu" />
     <CudaCompile Include="src\cudaSolver.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -20,26 +20,16 @@ constexpr float BOUND_DAMPING = -0.8f;
 
 template <typename T>
 constexpr T power_constexpr(T base, unsigned exponent) noexcept {
-    if (std::is_constant_evaluated()) {
-        // Compile-time optimized path
-        T result = 1;
-        while (exponent > 0) {
-            if (exponent % 2 == 1) {
-                result *= base;
-            }
-            base *= base;
-            exponent /= 2;
-        }
-        return result;
-    }
-    else {
-        // Runtime path (can use std::pow if desired)
-        T result = 1;
-        for (unsigned i = 0; i < exponent; ++i) {
+    // Compile-time optimized path
+    T result = 1;
+    while (exponent > 0) {
+        if (exponent % 2 == 1) {
             result *= base;
         }
-        return result;
+        base *= base;
+        exponent /= 2;
     }
+    return result;
 }
 
 constexpr float compute_poly6_constant(float h) noexcept {
