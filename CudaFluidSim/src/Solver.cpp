@@ -532,54 +532,36 @@ void Solver::SpatialParallelComputeCombined()
 	}
 }
 
-// Parallel merge sort implemented in a bottom-up iterative fashion.
-// This version does not use OpenMP tasks.
-template <typename RandomAccessIterator, typename Compare>
-void parallel_merge_sort(RandomAccessIterator begin, RandomAccessIterator end, Compare comp) {
-	typedef typename std::iterator_traits<RandomAccessIterator>::value_type T;
-	const size_t n = std::distance(begin, end);
-	if (n <= 1) return;
+static const int SERIAL_THRESHOLD = 1024;
 
-	// Choose a block size for the initial sort.
-	// Smaller blocks are sorted with std::sort; you can tune this parameter.
-	const size_t BLOCK_SIZE = 32;
+template<typename T, typename Compare>
+void quicksort_omp(T* data, int left, int right, Compare comp) {
+	if (left >= right) return;
 
-	// Create a temporary buffer to hold merged data.
-	std::vector<T> buffer(begin, end);
-
-	// Phase 1: Sort each individual block (of size BLOCK_SIZE) in parallel.
-#pragma omp parallel for schedule(dynamic)
-	for (int i = 0; i < n; i += BLOCK_SIZE) {
-		size_t block_end = std::min(i + BLOCK_SIZE, n);
-		std::sort(begin + i, begin + block_end, comp);
+	int size = right - left + 1;
+	if (size < SERIAL_THRESHOLD) {
+		std::sort(data + left, data + right + 1, comp);
+		return;
 	}
 
-	// Phase 2: Iteratively merge adjacent sorted blocks.
-	// We alternate between merging from the original array to the buffer and vice versa.
-	bool from_original = true;
-	// width: current size of subarrays to merge.
-	for (size_t width = BLOCK_SIZE; width < n; width *= 2) {
-#pragma omp parallel for schedule(dynamic)
-		for (int i = 0; i < n; i += 2 * width) {
-			size_t mid = std::min(i + width, n);
-			size_t end_i = std::min(i + 2 * width, n);
-			if (from_original) {
-				std::merge(begin + i, begin + mid,
-					begin + mid, begin + end_i,
-					buffer.begin() + i, comp);
-			}
-			else {
-				std::merge(buffer.begin() + i, buffer.begin() + mid,
-					buffer.begin() + mid, buffer.begin() + end_i,
-					begin + i, comp);
-			}
+	// pick pivot
+	T pivot = data[left + size / 2];
+	int i = left, j = right;
+	while (i <= j) {
+		while (comp(data[i], pivot)) ++i;
+		while (comp(pivot, data[j])) --j;
+		if (i <= j) {
+			std::swap(data[i], data[j]);
+			++i; --j;
 		}
-		from_original = !from_original;
 	}
 
-	// If the final merge ended in the buffer, copy the result back.
-	if (!from_original) {
-		std::copy(buffer.begin(), buffer.end(), begin);
+#pragma omp parallel sections
+	{
+#pragma omp section
+		quicksort_omp(data, left, j, comp);
+#pragma omp section
+		quicksort_omp(data, i, right, comp);
 	}
 }
 
@@ -610,10 +592,14 @@ void Solver::SpatialParallelUpdate()
 #endif
 
 	// sort particles in parallel by the particle's hash
-	std::sort(m_Particles.begin(), m_Particles.end(),
-		[&](const Particle& i, const Particle& j) {
-			return i.hash < j.hash;
-		});
+	auto cmp = [&](const Particle& i, const Particle& j) { return i.hash < j.hash; };
+
+	//std::sort(m_Particles.begin(), m_Particles.end(), cmp);
+	#pragma omp parallel
+	#pragma omp single nowait
+	{
+		quicksort_omp(m_Particles.data(), 0, int(m_Particles.size()) - 1, cmp);
+	}
 
 #ifdef PROFILE_TIMES
 	std::cout << "Sort. " << timer.GetElapsed(true) << " ms\n";
