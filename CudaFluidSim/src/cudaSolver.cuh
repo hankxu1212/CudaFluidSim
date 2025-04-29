@@ -10,12 +10,12 @@
 
 #include "Particle.hpp"
 
-void DeviceInitSPH(Particle* hostParticles, uint32_t windowHeight, uint32_t windowWidth);
+void DeviceInitSPH(d_Particle* hostParticles);
 void DispatchComputeDensityPressure();
 void DispatchComputeForces();
 void DispatchIntegrate(float dt);
 void DeviceCleanup();
 
-void DeviceSync(Particle* hostParticles, size_t count);
+void DeviceSync(d_Particle* hostParticles, size_t count);
 
 #endif

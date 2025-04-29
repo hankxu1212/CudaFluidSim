@@ -10,6 +10,12 @@ constexpr float MASS = 2.5f;		   // assume all particles have the same mass
 constexpr float VISC = 1500.f;	   // viscosity constant
 constexpr float DT = 0.0007f;       // simulation delta time
 
+// workaround since idk why the values aren't copying over
+constexpr uint32_t cuWINDOW_HEIGHT = 1000;
+constexpr uint32_t cuWINDOW_WIDTH = 1000;
+constexpr float cuGx = 0.f;
+constexpr float cuGy = 10.f;
+
 const static glm::vec2 G(0.f, 10.f);   // external (gravitational) forces
 
 constexpr int NUM_PARTICLES = 40000;

@@ -53,24 +53,52 @@ void Solver::OnUpdate()
 	{
 	case ApplicationSpecification::Naive:
 		ComputeDensityPressure();
+		//std::cout << "After ComputeDensityPressure " << m_Particles[0].density << " " << m_Particles[0].pressure << std::endl;
 		ComputeForces();
+		//std::cout << "After ComputeForces " << m_Particles[0].force[0] << " " << m_Particles[0].force[1] << std::endl;
 		Integrate(DT);
+		//std::cout << "After Integrate " << m_Particles[0].position[0] << " " << m_Particles[0].position[1] << std::endl;
+
+		LastFrameUpdateTime = totalTimer.GetElapsed(true);
 		break;
 
 	case ApplicationSpecification::Spatial:
 	case ApplicationSpecification::SpatialCombined:
 		SpatialParallelUpdate();
+
+		LastFrameUpdateTime = totalTimer.GetElapsed(true);
 		break;
 
 	case ApplicationSpecification::GPU:
 		DispatchComputeDensityPressure();
+		/*DeviceSync(m_dParticles.data(), NUM_PARTICLES);
+		std::cout << "After ComputeDensityPressure " << m_dParticles[0].position_density_pressure.z << " " << m_dParticles[0].position_density_pressure.w << std::endl;*/
 		DispatchComputeForces();
+		/*DeviceSync(m_dParticles.data(), NUM_PARTICLES);
+		std::cout << "After ComputeForces " << m_dParticles[0].velocity_force.z << " " << m_dParticles[0].velocity_force.w << std::endl;*/
 		DispatchIntegrate(DT);
-		DeviceSync(m_Particles.data(), NUM_PARTICLES);
+		DeviceSync(m_dParticles.data(), NUM_PARTICLES);
+		//std::cout << "After Integrate " << m_dParticles[0].position_density_pressure.x << " " << m_dParticles[0].position_density_pressure.y << std::endl;
+
+		LastFrameUpdateTime = totalTimer.GetElapsed(true);
+
+		for (int i = 0; i < NUM_PARTICLES; ++i)
+		{
+			auto& mp = m_Particles[i];
+			auto& dp = m_dParticles[i];
+			mp.position[0] = dp.position_density_pressure.x;
+			mp.position[1] = dp.position_density_pressure.y;
+			mp.density = dp.position_density_pressure.z;
+			mp.pressure = dp.position_density_pressure.w;
+			mp.velocity[0] = dp.velocity_force.x;
+			mp.velocity[1] = dp.velocity_force.y;
+			mp.force[0] = dp.velocity_force.z;
+			mp.force[1] = dp.velocity_force.w;
+			//m_Particles[i] = Particle(m_dParticles[i]);
+		}
+
 		break;
 	}
-
-	LastFrameUpdateTime = totalTimer.GetElapsed(true);
 }
 
 void Solver::OnEvent(Event& e)
@@ -120,7 +148,7 @@ void Solver::OnRestart()
 		std::cout << "Acceleration method: GPU\n";
 		DeviceCleanup();
 		InitSPH();
-		DeviceInitSPH(m_Particles.data(), WINDOW_HEIGHT, WINDOW_WIDTH);
+		DeviceInitSPH(m_dParticles.data());
 		break;
 	}
 }
@@ -157,6 +185,7 @@ void Solver::InitSPH()
 		float x = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * cos(angle) + WINDOW_HEIGHT / 5;
 		float y = WINDOW_HEIGHT / 3 + WINDOW_HEIGHT / 3 * r * sin(angle);
 
+		m_dParticles[i] = d_Particle(x, y);
 		m_Particles[i] = Particle(x, y);
 	}
 

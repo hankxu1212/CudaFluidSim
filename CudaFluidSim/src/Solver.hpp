@@ -15,6 +15,7 @@ public:
 	static Solver* s_Instance;
 
 	std::array<Particle, NUM_PARTICLES> m_Particles;
+	std::array<d_Particle, NUM_PARTICLES> m_dParticles;
 
 	uint32_t numThreads;
 
